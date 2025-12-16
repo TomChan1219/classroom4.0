@@ -1,322 +1,226 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <title>智慧校园课室预约系统</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBC 实创中心预约系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        .cell-free { background-color: #d1fae5; cursor: pointer; } 
-        .cell-free:hover { background-color: #34d399; }
-        .cell-sunday { background-color: #bfdbfe; cursor: not-allowed; } 
-        .cell-course { background-color: #fca5a5; color: #7f1d1d; font-weight: bold; cursor: pointer; } 
-        .cell-taken { background-color: #fde047; cursor: pointer; } 
-        .cell-pending { background-color: #e5e7eb; cursor: help; } 
-        .drawer { transition: transform 0.3s ease-in-out; transform: translateX(100%); }
-        .drawer.open { transform: translateX(0); }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f3f4f6; }
+        
+        /* 淡入动画 */
+        .fade-in-up {
+            animation: fadeInUp 0.8s ease-out forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        @keyframes fadeInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 依次延迟显示 */
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+        .delay-300 { animation-delay: 0.3s; }
     </style>
 </head>
-<body class="bg-gray-100 p-4 h-screen flex flex-col">
+<body class="bg-gray-50 text-gray-800">
 
-<script>
-    let isAdminLoggedIn = false;
-
-    window.onload = function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const msg = urlParams.get('msg');
-        const roleParam = urlParams.get('role'); 
-
-        // 自动恢复身份
-        if (roleParam === 'admin') {
-            isAdminLoggedIn = true;
-            const roleSelect = document.getElementById('role-switch');
-            if (roleSelect) {
-                roleSelect.value = 'admin';
-                updateUIForRole(); 
-            }
-        }
-
-        if (msg === 'submitted') {
-            alert("✅ 申请已提交！请等待助理审核结果。");
-        } else if (msg === 'audit_done') {
-            alert("✅ 操作完成！(如有必要系统已自动发送邮件通知学生)");
-        } else if (msg === 'course_added') {
-            alert("✅ 课程排课成功！");
-        } else if (msg === 'error_conflict') {
-            alert("❌ 手慢了！该时段刚刚已被占用。");
-        }
-    }
-</script>
-
-<div class="flex justify-between items-center mb-4 bg-white p-4 shadow rounded shrink-0">
-    <div class="flex items-center space-x-4">
-        <h1 class="text-2xl font-bold text-gray-800">📅 课室资源看板</h1>
-        <div class="space-x-2 text-sm">
-            <span class="px-2 py-1 bg-green-200 rounded">🟩 可预约</span>
-            <span class="px-2 py-1 bg-red-200 rounded">🟥 课程/占用</span>
-            <span class="px-2 py-1 bg-yellow-200 rounded">🟨 已预约</span>
-            <span class="px-2 py-1 bg-gray-200 rounded">⬜ 待审核</span>
-        </div>
-    </div>
-    <div class="flex items-center space-x-2">
-        <a href="/?view_date={{ prev_week }}" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">⬅️ 上周</a>
-        <span class="font-bold text-lg">{{ current_week_start }} 至 {{ next_week }}</span>
-        <a href="/?view_date={{ next_week }}" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">下周 ➡️</a>
-    </div>
-    <div>
-        <label class="mr-2 font-bold">当前身份:</label>
-        <select id="role-switch" onchange="handleRoleChange()" class="border p-1 rounded bg-blue-50 font-bold text-blue-800">
-            <option value="student">👨‍🎓 学生</option>
-            <option value="admin">👩‍💼 助理 (需要密码)</option>
-        </select>
-    </div>
-</div>
-
-<div class="flex-grow overflow-auto bg-white shadow rounded-lg mb-4 relative">
-    <table class="min-w-full border-collapse border border-gray-300 text-sm text-center">
-        <thead class="bg-gray-800 text-white sticky top-0 z-10">
-            <tr>
-                <th class="p-2 border">周次</th><th class="p-2 border">日期</th><th class="p-2 border">星期</th><th class="p-2 border">节次</th>
-                {% for room in rooms %}<th class="p-2 border w-40">{{ room.name }}</th>{% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in dashboard_rows %}
-            <tr class="border-b">
-                <td class="p-2 border bg-gray-50">{{ row.week }}</td>
-                <td class="p-2 border bg-gray-50">{{ row.date }}</td>
-                <td class="p-2 border bg-gray-50 font-bold {{ 'text-blue-600' if row.is_sunday else '' }}">{{ row.weekday }}</td>
-                <td class="p-2 border bg-gray-50">{{ row.slot }}</td>
-                {% for cell in row.cells %}
-                <td class="border p-1 h-16 align-middle transition duration-150
-                           {% if cell.status == 'FREE' %} cell-free
-                           {% elif cell.status == 'SUNDAY' %} cell-sunday
-                           {% elif cell.status == 'COURSE' %} cell-course
-                           {% elif cell.status == 'TAKEN' %} cell-taken
-                           {% else %} cell-pending {% endif %}"
-                    
-                    data-status="{{ cell.status }}"
-                    data-room-id="{{ cell.room_id }}"
-                    data-date="{{ row.date }}"
-                    data-slot="{{ row.slot }}"
-                    data-booking-id="{{ cell.booking.id if cell.booking else '' }}"
-                    data-student="{{ cell.booking.student_name if cell.booking else '' }}"
-                    data-student-id="{{ cell.booking.student_id if cell.booking else '' }}"
-                    data-email="{{ cell.booking.student_email if cell.booking else '' }}"
-                    data-teacher="{{ cell.booking.instructor_name if cell.booking else '' }}"
-                    data-purpose="{{ cell.booking.purpose if cell.booking else '' }}"
-                    
-                    onclick="handleCellClick(this)"
-                >
-                    {% if cell.status == 'COURSE' %}
-                        {{ cell.booking.student_name }}<br><span class="text-xs">{{ cell.booking.instructor_name }}</span>
-                    {% elif cell.status == 'TAKEN' %}
-                        已预约<br><span class="text-xs text-gray-600">{{ cell.booking.student_name }}</span>
-                    {% elif cell.status == 'PENDING' %}
-                        <span class="text-gray-500 font-bold">审核中</span>
-                    {% elif cell.status == 'FREE' %}
-                        <span class="text-green-600 font-bold opacity-0 hover:opacity-100 text-lg">+</span>
-                    {% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<button onclick="toggleDrawer()" class="admin-only hidden fixed bottom-8 right-8 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 z-50 flex items-center">
-    📋 管理申请 <span class="ml-2 bg-red-500 text-white text-xs rounded-full px-2">{{ pending_list|length }}</span>
-</button>
-
-<div id="audit-drawer" class="drawer fixed inset-y-0 right-0 w-96 bg-white shadow-2xl z-50 border-l border-gray-200 overflow-y-auto">
-    <div class="p-4 bg-gray-100 flex justify-between items-center sticky top-0 border-b">
-        <h2 class="text-xl font-bold">📝 预约管理中心</h2>
-        <button onclick="toggleDrawer()" class="text-gray-500 text-2xl hover:text-red-500">&times;</button>
-    </div>
-    
-    <div class="p-4">
-        <div class="flex space-x-4 mb-4 border-b">
-            <button onclick="showTab('pending')" id="btn-pending" class="pb-2 font-bold border-b-2 border-blue-500 text-blue-600 w-1/2">待审核</button>
-            <button onclick="showTab('approved')" id="btn-approved" class="pb-2 text-gray-500 hover:text-gray-800 w-1/2">已通过记录</button>
-        </div>
-
-        <div id="tab-pending" class="space-y-4">
-            {% for item in pending_list %}
-            <div class="bg-white p-4 rounded-lg border shadow-sm hover:shadow-md transition">
-                <div class="flex justify-between items-start mb-2">
-                    <div>
-                        <span class="font-bold text-lg text-gray-800">{{ item.student_name }}</span>
-                        <span class="text-xs text-gray-500 block">学号: {{ item.student_id }}</span>
+    <nav class="bg-white shadow-sm sticky top-0 z-50 backdrop-blur-md bg-opacity-80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-graduation-cap text-indigo-600 text-2xl mr-3"></i>
+                    <span class="font-bold text-xl tracking-tight text-gray-900">Classroom 4.0</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-500 hidden md:block">{{ current_week_start }} ~ {{ next_week }}</span>
+                    <div class="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
+                        A
                     </div>
-                    <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">{{ item.booking_date.strftime('%m-%d') }}</span>
-                </div>
-                
-                <div class="text-sm text-gray-600 space-y-1 mb-3 bg-gray-50 p-3 rounded">
-                    <p><span class="font-bold text-gray-500">地点：</span>{{ item.room.name }}</p>
-                    <p><span class="font-bold text-gray-500">时间：</span>{{ item.slot.value }}</p>
-                    <p><span class="font-bold text-gray-500">老师：</span>{{ item.instructor_name or '无' }}</p>
-                    <p><span class="font-bold text-gray-500">用途：</span>{{ item.purpose }}</p>
-                    <p><span class="font-bold text-gray-500">邮箱：</span>{{ item.student_email }}</p>
-                </div>
-
-                <div class="flex space-x-2">
-                    <form action="/audit/{{ item.id }}" method="post" class="flex-1">
-                        <input type="hidden" name="action" value="approve">
-                        <button class="w-full bg-green-500 text-white py-2 rounded font-bold hover:bg-green-600">通过</button>
-                    </form>
-                    <button onclick="openCancelModal('{{ item.id }}', 'reject', 'reject')" class="flex-1 bg-red-500 text-white py-2 rounded font-bold hover:bg-red-600">驳回</button>
                 </div>
             </div>
-            {% else %}
-            <div class="text-center text-gray-400 py-8"><p>暂无待审核申请</p></div>
-            {% endfor %}
         </div>
+    </nav>
 
-        <div id="tab-approved" class="space-y-4 hidden">
-            {% for item in approved_list %}
-            <div class="bg-white p-4 rounded-lg border border-l-4 border-l-yellow-400 shadow-sm">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="font-bold text-gray-800">
-                        {% if item.booking_type == 'course' %} 
-                            📘 [课程] {{ item.student_name }} 
-                        {% else %} 
-                            👤 {{ item.student_name }} ({{ item.student_id }}) 
-                        {% endif %}
-                    </span>
-                </div>
-                <div class="text-sm text-gray-600 space-y-1 mb-3">
-                    <p><strong>日期:</strong> {{ item.booking_date }}</p>
-                    <p><strong>时间:</strong> {{ item.slot.value }}</p> 
-                    <p><strong>地点:</strong> {{ item.room.name }}</p>
-                    <p><strong>老师:</strong> {{ item.instructor_name or '-' }}</p>
-                </div>
-                
-                {% if item.booking_type == 'course' %}
-                    <button onclick="openCancelModal('{{ item.id }}', 'delete', 'course_delete')" class="w-full bg-gray-100 text-gray-600 py-1 rounded text-sm hover:bg-red-50 hover:text-red-600 border border-gray-200">
-                        ❌ 取消排课
-                    </button>
-                {% else %}
-                    <button onclick="openCancelModal('{{ item.id }}', 'delete', 'student_delete')" class="w-full bg-gray-100 text-gray-600 py-1 rounded text-sm hover:bg-red-50 hover:text-red-600 border border-gray-200">
-                        ❌ 强制取消
-                    </button>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-
-<div id="cancel-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-    <div class="bg-white p-6 rounded-xl shadow-2xl w-96 border-t-4 border-red-500">
-        <h2 class="text-xl font-bold mb-4 text-gray-800" id="cancel-title">⚠️ 确认操作</h2>
-        <form id="cancel-form" action="" method="post">
-            <input type="hidden" name="action" id="cancel-action-input">
-            <label class="block font-bold text-sm mb-2 text-gray-700">请选择原因:</label>
-            <select name="cancel_reason" id="cancel-reason-select" class="w-full border p-2 rounded mb-6 bg-gray-50">
-            </select>
-            <div class="flex justify-end space-x-2">
-                <button type="button" onclick="closeModal('cancel-modal')" class="px-4 py-2 bg-gray-200 rounded">暂不取消</button>
-                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">确认提交</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div id="detail-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50"><div class="bg-white p-6 rounded-xl shadow-2xl w-96"><h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">📌 预约详细档案</h2><div class="space-y-3 mb-6 text-sm text-gray-600"><div><span class="block text-xs text-gray-400">申请人/课程</span><span id="detail-name" class="text-gray-900 font-bold text-lg block"></span></div><div class="grid grid-cols-2 gap-2"><div><span class="block text-xs text-gray-400">学号/ID</span><span id="detail-student-id" class="text-gray-800 font-mono"></span></div><div><span class="block text-xs text-gray-400">指导/任课老师</span><span id="detail-teacher" class="text-gray-800"></span></div></div><div><span class="block text-xs text-gray-400">联系邮箱</span><span id="detail-email" class="text-blue-600 underline"></span></div><div class="bg-gray-50 p-2 rounded"><span class="block text-xs text-gray-400">用途</span><span id="detail-purpose" class="text-gray-800"></span></div><div class="text-xs text-gray-400 mt-2 pt-2 border-t">时间: <span id="detail-time"></span></div></div><div class="flex justify-end space-x-2"><button type="button" onclick="closeModal('detail-modal')" class="px-4 py-2 bg-gray-200 rounded">关闭</button><button id="btn-force-cancel" onclick="" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">🗑️ 强制取消</button></div></div></div>
-<div id="student-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-40"><div class="bg-white p-6 rounded-xl shadow-2xl w-[500px]"><h2 class="text-xl font-bold mb-4 text-blue-600">🎓 学生预约申请</h2><form action="/submit_booking" method="post"><input type="hidden" name="mode" value="student"><input type="hidden" name="room_id" id="stu-room-id"><input type="hidden" name="booking_date" id="stu-date"><input type="hidden" name="slot" id="stu-slot"><div class="space-y-4"><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold text-gray-700">学号</label><input type="text" name="student_id" placeholder="学号" required class="w-full border p-2 rounded"></div><div><label class="block text-sm font-bold text-gray-700">姓名</label><input type="text" name="student_name" placeholder="姓名" required class="w-full border p-2 rounded"></div></div><div><label class="block text-sm font-bold text-gray-700">指导老师</label><input type="text" name="instructor_name" placeholder="指导老师姓名" class="w-full border p-2 rounded"></div><div><label class="block text-sm font-bold text-gray-700">联系邮箱</label><input type="email" name="student_email" placeholder="邮箱" required class="w-full border p-2 rounded"></div><div><label class="block text-sm font-bold text-gray-700">申请用途</label><input type="text" name="purpose" placeholder="用途" required class="w-full border p-2 rounded"></div></div><div class="flex justify-end space-x-2 mt-6"><button type="button" onclick="closeModal('student-modal')" class="px-4 py-2 bg-gray-200 rounded">取消</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">提交</button></div></form></div></div>
-<div id="admin-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-40"><div class="bg-white p-6 rounded-xl shadow-2xl w-[600px] border-t-4 border-red-500"><h2 class="text-xl font-bold mb-4 text-red-600">👩‍💼 助理排课 (批量)</h2><form action="/submit_booking" method="post"><input type="hidden" name="mode" value="course"><input type="hidden" name="room_id" id="adm-room-id"><input type="hidden" name="booking_date" id="adm-date"><div class="space-y-4"><div class="grid grid-cols-2 gap-4"><div><label class="block font-bold text-sm">课程名称</label><input type="text" name="course_name" placeholder="如：Python程序设计" required class="w-full border p-2 rounded"></div><div><label class="block font-bold text-sm">任课老师</label><input type="text" name="course_teacher" placeholder="如：王老师" required class="w-full border p-2 rounded"></div></div><div class="bg-red-50 p-3 rounded border border-red-100"><label class="block font-bold text-sm mb-2 text-red-800">📅 循环上课周次 (默认1-16周)</label><div class="flex items-center space-x-2"><span>第</span><input type="number" name="start_week" value="1" min="1" max="20" class="border p-1 w-16 text-center rounded"><span>周  至  第</span><input type="number" name="end_week" value="16" min="1" max="20" class="border p-1 w-16 text-center rounded"><span>周</span></div></div><div><label class="block font-bold text-sm mb-2">选择上课节次</label><div class="grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded">{% for s in slots_list %}<label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-1 rounded"><input type="checkbox" name="slot" value="{{ s.value }}" class="w-5 h-5 text-red-600"><span>{{ s.value }}</span></label>{% endfor %}</div></div></div><div class="flex justify-end space-x-2 mt-6"><button type="button" onclick="closeModal('admin-modal')" class="px-4 py-2 bg-gray-200 rounded">取消</button><button type="submit" class="px-4 py-2 bg-red-600 text-white rounded">确认添加</button></div></form></div></div>
-<div id="password-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 hidden flex items-center justify-center z-[60]"><div class="bg-white p-8 rounded-xl shadow-2xl w-96 text-center"><div class="mb-4 text-4xl">🔐</div><h2 class="text-xl font-bold mb-4 text-gray-800">助理端登录</h2><input type="password" id="admin-password-input" placeholder="请输入密码 (123456)" class="w-full border p-3 rounded mb-4 text-center text-lg tracking-widest focus:ring-2 focus:ring-blue-500 outline-none" onkeydown="if(event.key === 'Enter') verifyPassword()"><div class="flex justify-center space-x-3"><button onclick="cancelLogin()" class="px-6 py-2 bg-gray-200 rounded hover:bg-gray-300">取消</button><button onclick="verifyPassword()" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">登录</button></div></div></div>
-
-<script>
-    // JS 逻辑保持不变
-    function handleRoleChange() {
-        const role = document.getElementById('role-switch').value;
-        if (role === 'admin') {
-            if (!isAdminLoggedIn) {
-                document.getElementById('password-modal').classList.remove('hidden');
-                document.getElementById('admin-password-input').value = '';
-                document.getElementById('admin-password-input').focus();
-                document.getElementById('role-switch').value = 'student'; 
-            } else { updateUIForRole(); }
-        } else { updateUIForRole(); }
-    }
-    function verifyPassword() {
-        const pwd = document.getElementById('admin-password-input').value;
-        const formData = new FormData(); formData.append('password', pwd);
-        fetch('/api/validate_password', {method: 'POST', body: formData}).then(r=>r.json()).then(d=>{
-            if(d.valid){ isAdminLoggedIn=true; document.getElementById('password-modal').classList.add('hidden'); document.getElementById('role-switch').value='admin'; updateUIForRole(); }
-            else{ alert("❌ 密码错误"); document.getElementById('admin-password-input').value=''; }
-        });
-    }
-    function cancelLogin() { document.getElementById('password-modal').classList.add('hidden'); document.getElementById('role-switch').value='student'; }
-    function updateUIForRole() { const role = document.getElementById('role-switch').value; document.querySelectorAll('.admin-only').forEach(el => el.style.display = (role === 'admin') ? 'flex' : 'none'); }
-
-    // 动态选项逻辑
-    function openCancelModal(bookingId, actionType, scenario) {
-        document.getElementById('cancel-modal').classList.remove('hidden');
-        document.getElementById('cancel-form').action = "/audit/" + bookingId;
-        document.getElementById('cancel-action-input').value = actionType;
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        const select = document.getElementById('cancel-reason-select');
-        const title = document.getElementById('cancel-title');
-        select.innerHTML = ''; 
+        <div class="mb-8 fade-in-up">
+            <h1 class="text-3xl font-bold text-gray-900">欢迎回来，管理员 👋</h1>
+            <p class="mt-2 text-gray-600">今天是 {{ current_week_start }}，祝你拥有高效的一天。</p>
+        </div>
 
-        let options = [];
-        if (scenario === 'reject') {
-            title.innerText = "⚠️ 确认驳回申请";
-            options = ["本人填写信息有误", "预约请求和学院其它活动冲突"];
-        } else if (scenario === 'course_delete') {
-            title.innerText = "⚠️ 确认取消课程";
-            options = ["教师需要调课", "上课场所和其它安排冲突"];
-        } else {
-            title.innerText = "⚠️ 确认取消预约";
-            options = ["本人自愿申请取消", "与其它活动课程冲突"];
-        }
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 fade-in-up delay-100">
+            <div class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">待审核申请</p>
+                        <p class="text-3xl font-bold text-indigo-600 mt-1">{{ pending_list|length }}</p>
+                    </div>
+                    <div class="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                        <i class="fa-solid fa-clock text-xl"></i>
+                    </div>
+                </div>
+            </div>
 
-        options.forEach(opt => {
-            const el = document.createElement('option');
-            el.value = opt; el.innerText = opt; select.appendChild(el);
-        });
-        closeModal('detail-modal');
-    }
+            <div class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">已通过预约</p>
+                        <p class="text-3xl font-bold text-green-500 mt-1">{{ approved_list|length }}</p>
+                    </div>
+                    <div class="p-3 bg-green-50 rounded-xl text-green-600">
+                        <i class="fa-solid fa-check-circle text-xl"></i>
+                    </div>
+                </div>
+            </div>
 
-    function handleCellClick(el) {
-        const status = el.dataset.status;
-        const role = document.getElementById('role-switch').value;
-        const bookingId = el.dataset.bookingId;
-        if (status === 'SUNDAY') return alert("🛑 周日休息。");
-        if (role === 'admin' && (status === 'TAKEN' || status === 'COURSE')) {
-            document.getElementById('detail-modal').classList.remove('hidden');
-            document.getElementById('detail-name').innerText = el.dataset.student;
-            document.getElementById('detail-student-id').innerText = el.dataset.studentId || 'N/A';
-            document.getElementById('detail-teacher').innerText = el.dataset.teacher || '无';
-            document.getElementById('detail-email').innerText = el.dataset.email || '无';
-            document.getElementById('detail-purpose').innerText = el.dataset.purpose || '无';
-            document.getElementById('detail-time').innerText = el.dataset.date + " " + el.dataset.slot;
+            <div class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">可用教室</p>
+                        <p class="text-3xl font-bold text-blue-500 mt-1">{{ rooms|length }}</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-xl text-blue-600">
+                        <i class="fa-solid fa-building text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">系统状态</p>
+                        <p class="text-lg font-bold text-gray-700 mt-2">运行中 🚀</p>
+                    </div>
+                    <div class="p-3 bg-purple-50 rounded-xl text-purple-600">
+                        <i class="fa-solid fa-server text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 fade-in-up delay-200">
             
-            const isCourse = (status === 'COURSE');
-            const scenario = isCourse ? 'course_delete' : 'student_delete';
-            document.getElementById('btn-force-cancel').onclick = function() { openCancelModal(bookingId, 'delete', scenario); };
-            return;
-        }
-        if (role === 'admin') {
-            if (status === 'FREE') openAdminModal(el.dataset.roomId, el.dataset.date);
-            else if (status === 'PENDING') alert("👇 请在右下角侧边栏审核此申请。");
-        } else {
-            if (status === 'FREE') openStudentModal(el.dataset.roomId, el.dataset.date, el.dataset.slot);
-            else alert("⚠️ 该时段不可用。");
-        }
-    }
-    function openStudentModal(r, d, s) { document.getElementById('student-modal').classList.remove('hidden'); document.getElementById('stu-room-id').value = r; document.getElementById('stu-date').value = d; document.getElementById('stu-slot').value = s; }
-    function openAdminModal(r, d) { document.getElementById('admin-modal').classList.remove('hidden'); document.getElementById('adm-room-id').value = r; document.getElementById('adm-date').value = d; document.querySelectorAll('#admin-modal input[type="checkbox"]').forEach(cb => cb.checked = false); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-    function toggleDrawer() { document.getElementById('audit-drawer').classList.toggle('open'); }
-    function showTab(tabName) {
-        const btnPending = document.getElementById('btn-pending'); const btnApproved = document.getElementById('btn-approved');
-        if (tabName === 'pending') { document.getElementById('tab-pending').classList.remove('hidden'); document.getElementById('tab-approved').classList.add('hidden'); btnPending.classList.add('border-b-2', 'border-blue-500', 'text-blue-600'); btnPending.classList.remove('text-gray-500'); btnApproved.classList.remove('border-b-2', 'border-blue-500', 'text-blue-600'); btnApproved.classList.add('text-gray-500'); }
-        else { document.getElementById('tab-pending').classList.add('hidden'); document.getElementById('tab-approved').classList.remove('hidden'); btnApproved.classList.add('border-b-2', 'border-blue-500', 'text-blue-600'); btnApproved.classList.remove('text-gray-500'); btnPending.classList.remove('border-b-2', 'border-blue-500', 'text-blue-600'); btnPending.classList.add('text-gray-500'); }
-    }
-    updateUIForRole();
-</script>
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <h2 class="font-bold text-gray-800"><i class="fa-solid fa-calendar-days mr-2 text-indigo-500"></i>本周排课情况</h2>
+                        <div class="space-x-2">
+                            <a href="/?view_date={{ prev_week }}" class="px-3 py-1 text-sm bg-white border rounded-lg hover:bg-gray-50 transition">Wait 上一周</a>
+                            <a href="/?view_date={{ next_week }}" class="px-3 py-1 text-sm bg-indigo-600 text-white border border-indigo-600 rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-200">下一周 →</a>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto p-4">
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 rounded-l-lg">日期</th>
+                                    <th class="px-4 py-3">节次</th>
+                                    {% for room in rooms %}
+                                    <th class="px-4 py-3 text-center min-w-[100px]">{{ room.name }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in dashboard_rows %}
+                                <tr class="border-b hover:bg-gray-50 transition-colors">
+                                    <td class="px-4 py-3 font-medium">
+                                        <div class="text-gray-900">{{ row.weekday }}</div>
+                                        <div class="text-xs text-gray-400">{{ row.date }}</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded">{{ row.slot }}</span>
+                                    </td>
+                                    
+                                    {% for cell in row.cells %}
+                                    <td class="px-2 py-2 text-center">
+                                        {% if cell.status == "FREE" %}
+                                            <span class="inline-block w-3 h-3 bg-green-400 rounded-full" title="空闲"></span>
+                                        {% elif cell.status == "PENDING" %}
+                                            <div class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-lg border border-yellow-200">
+                                                审核中
+                                            </div>
+                                        {% elif cell.status == "TAKEN" %}
+                                            <div class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-lg border border-indigo-200 truncate max-w-[100px]">
+                                                {{ cell.booking.student_name }}
+                                            </div>
+                                        {% elif cell.status == "COURSE" %}
+                                            <div class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-lg border border-gray-200 truncate max-w-[100px]">
+                                                {{ cell.booking.student_name }}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-8">
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                        <span class="w-2 h-6 bg-yellow-400 rounded-full mr-3"></span>
+                        待审核申请
+                    </h3>
+                    
+                    {% if pending_list %}
+                    <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                        {% for booking in pending_list %}
+                        <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                            <div class="absolute top-0 right-0 w-16 h-16 bg-yellow-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                            
+                            <div class="relative z-10">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-bold text-gray-800">{{ booking.student_name }}</h4>
+                                    <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">待定</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-1"><i class="fa-regular fa-calendar mr-2 text-gray-400"></i>{{ booking.booking_date }}</p>
+                                <p class="text-sm text-gray-600 mb-3"><i class="fa-solid fa-location-dot mr-2 text-gray-400"></i>{{ booking.room.name }}</p>
+                                
+                                <form action="/audit/{{ booking.id }}" method="post" class="flex gap-2 mt-3">
+                                    <button name="action" value="approve" class="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 text-white text-sm py-2 rounded-lg hover:opacity-90 transition shadow-md shadow-green-100">通过</button>
+                                    <button name="action" value="reject" class="flex-1 bg-white text-red-500 border border-red-200 text-sm py-2 rounded-lg hover:bg-red-50 transition">驳回</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-mug-hot text-4xl mb-3"></i>
+                        <p>暂时没有新申请，喝杯咖啡吧！</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl shadow-lg shadow-indigo-200 p-6 text-white relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-10 -mt-10 blur-xl"></div>
+                    
+                    <h3 class="font-bold text-lg mb-2 relative z-10">需要手动排课？</h3>
+                    <p class="text-indigo-100 text-sm mb-4 relative z-10">管理员可以直接添加学期课程或临时占用。</p>
+                    
+                    <button onclick="alert('这里可以弹出一个漂亮的模态框来填写表单')" class="w-full bg-white text-indigo-600 font-bold py-3 rounded-xl hover:bg-indigo-50 transition shadow-lg relative z-10">
+                        + 发起预约 / 录入课程
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center py-8 text-gray-400 text-sm">
+        <p>© 2025 Classroom 4.0 | Designed for IBC Center</p>
+    </footer>
 
 </body>
 </html>
