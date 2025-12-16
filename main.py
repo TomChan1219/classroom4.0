@@ -16,11 +16,11 @@ SEMESTER_START = date(2025, 9, 8)
 
 # --- 📧 邮件配置 (Gmail版) ---
 SMTP_CONFIG = {
-    "ENABLE": True,
-    "SERVER": "smtp.gmail.com",
-    "PORT": 465,
-    "EMAIL": "chenxz1219@gmail.com",
-    "PASSWORD": "gtuiqwuvjakypghq"  # ⚠️ 再次提醒：如果这个密码之前泄露过，建议去Google重新生成一个
+    "ENABLE": True, 
+    "SERVER": "smtp.gmail.com", 
+    "PORT": 587,   # 👈 必须改成 587
+    "EMAIL": "chenxz1219@gmail.com", 
+    "PASSWORD": "gtuiqwuvjakypghq" 
 }
 
 def get_week_info(target_date: date):
@@ -283,4 +283,5 @@ IBC实创中心助理
     session.add(booking)
     session.commit()
     return RedirectResponse(url="/?msg=audit_done&role=admin", status_code=303)
+
 
