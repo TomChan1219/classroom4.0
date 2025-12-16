@@ -1,702 +1,1042 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IBC 实创中心课室预约系统</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <style>
-        :root {
-            --status-free: #d4edda; /* 浅绿 */
-            --status-free-hover: #c3e6cb;
-            --status-pending: #fff3cd; /* 浅黄 */
-            --status-taken: #f8d7da; /* 浅红 */
-            --status-course: #cce5ff; /* 浅蓝 */
-            --status-sunday: #e9ecef; /* 灰色 */
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SCNU IBC SAC 智能预约系统 | Smart Booking</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 
-        body {
-            background-color: #f8f9fa;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
+  <style>
+    :root{
+      --ease-out: cubic-bezier(.16,1,.3,1);
+      --ease-in: cubic-bezier(.7,0,.84,0);
+      --shadow-card: 0 12px 40px rgba(2,6,23,.10);
+    }
+    @keyframes shimmer { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    @keyframes pop { 0%{transform:scale(.98); opacity:0} 100%{transform:scale(1); opacity:1} }
+    @keyframes slideUp { 0%{transform:translateY(18px); opacity:0} 100%{transform:translateY(0); opacity:1} }
+    @keyframes slideInRight { 0%{transform:translateX(24px); opacity:0} 100%{transform:translateX(0); opacity:1} }
+    @keyframes fadeOut { 0%{opacity:1} 100%{opacity:0} }
 
-        .main-container {
-            margin-top: 20px;
-            margin-bottom: 40px;
-        }
+    .glass{ background: rgba(255,255,255,.70); border: 1px solid rgba(148,163,184,.25); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+    .card{ box-shadow: var(--shadow-card); border: 1px solid rgba(148,163,184,.22); }
+    .btn{ transition: transform .18s var(--ease-out), box-shadow .18s var(--ease-out), filter .18s var(--ease-out); }
+    .btn:hover{ transform: translateY(-1px); filter: brightness(1.02); }
+    .btn:active{ transform: translateY(0) scale(.99); }
 
-        /* 日历表格样式 */
-        .calendar-table {
-            table-layout: fixed;
-            background: white;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.05);
-        }
-        
-        .calendar-table th {
-            text-align: center;
-            vertical-align: middle;
-            background-color: #343a40;
-            color: white;
-            font-weight: 500;
-            padding: 12px 5px;
-        }
+    .cell{ position: relative; transition: transform .18s var(--ease-out), box-shadow .18s var(--ease-out); border-radius: 14px; overflow:hidden; }
+    .cell::after{
+      content:""; position:absolute; inset:0;
+      background: radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(255,255,255,.22), transparent 35%);
+      opacity:0; transition: opacity .18s var(--ease-out); pointer-events:none;
+    }
+    .cell:hover::after{ opacity:1; }
 
-        /* 时间段侧边栏 */
-        .slot-header {
-            background-color: #f1f3f5;
-            text-align: center;
-            vertical-align: middle;
-            font-weight: bold;
-            font-size: 0.9rem;
-            width: 80px;
-        }
-        
-        .slot-date-tag {
-            font-size: 0.75rem;
-            color: #6c757d;
-            display: block;
-            margin-bottom: 4px;
-        }
+    .cell-free { background: linear-gradient(135deg, rgba(16,185,129,.18), rgba(59,130,246,.10)); cursor: pointer; }
+    .cell-sunday { background: linear-gradient(135deg, rgba(59,130,246,.16), rgba(99,102,241,.10)); cursor: not-allowed; filter:saturate(.85); }
+    .cell-course { background: linear-gradient(135deg, rgba(244,63,94,.22), rgba(251,113,133,.12)); color: #7f1d1d; font-weight: 700; cursor: pointer; }
+    .cell-taken { background: linear-gradient(135deg, rgba(250,204,21,.22), rgba(253,224,71,.10)); cursor: pointer; }
+    .cell-pending { background: linear-gradient(135deg, rgba(148,163,184,.22), rgba(241,245,249,.65)); cursor: help; }
 
-        /* 单元格基础样式 */
-        .cell-base {
-            height: 70px;
-            vertical-align: middle;
-            text-align: center;
-            font-size: 0.85rem;
-            padding: 4px;
-            transition: all 0.2s ease-in-out;
-            border: 1px solid #dee2e6;
-        }
+    .drawer { transition: transform .42s var(--ease-out); transform: translateX(110%); }
+    .drawer.open { transform: translateX(0); }
 
-        /* 不同状态的单元格颜色和交互 */
-        .status-free {
-            background-color: var(--status-free);
-            color: #155724;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .status-free:hover {
-            background-color: var(--status-free-hover);
-            transform: scale(1.02);
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        
-        .status-pending { background-color: var(--status-pending); color: #856404; }
-        .status-taken { background-color: var(--status-taken); color: #721c24; }
-        .status-course { background-color: var(--status-course); color: #004085; }
-        .status-sunday { background-color: var(--status-sunday); color: #6c757d; pointer-events: none;}
+    .toast-enter{ animation: slideInRight .28s var(--ease-out) both; }
+    .toast-exit{ animation: fadeOut .20s var(--ease-in) both; }
 
-        /* 侧边栏样式 */
-        .sidebar-card {
-            border: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-        }
-        .sidebar-header {
-            background-color: #fff;
-            border-bottom: 2px solid #f1f3f5;
-            font-weight: bold;
-            padding: 15px;
-        }
-
-        .booking-list-item {
-            font-size: 0.9rem;
-            border-left: 4px solid transparent;
-            cursor: pointer;
-        }
-        .booking-list-item:hover { background-color: #f8f9fa; }
-        .border-pending { border-left-color: #ffc107; }
-        .border-approved { border-left-color: #28a745; }
-
-        /* Toast 容器位置 */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1080;
-        }
-    </style>
+    .welcome-bg{
+      background: radial-gradient(1200px circle at 20% 10%, rgba(99,102,241,.20), transparent 45%),
+                  radial-gradient(900px circle at 85% 15%, rgba(236,72,153,.18), transparent 45%),
+                  radial-gradient(900px circle at 70% 90%, rgba(16,185,129,.18), transparent 50%),
+                  linear-gradient(180deg, rgba(2,6,23,.03), rgba(2,6,23,.00));
+    }
+    .welcome-orb{
+      background: linear-gradient(135deg, rgba(99,102,241,.55), rgba(236,72,153,.50), rgba(16,185,129,.45));
+      background-size: 200% 200%;
+      animation: shimmer 7s var(--ease-out) infinite;
+      opacity:.35;
+    }
+    .appear{ animation: pop .34s var(--ease-out) both; }
+    .appear-up{ animation: slideUp .42s var(--ease-out) both; }
+  </style>
 </head>
-<body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="/">
-                <i class="bi bi-calendar2-week-fill me-2"></i>IBC 实创中心课室预约
-            </a>
-            <div class="d-flex align-items-center">
-                <span id="role-badge" class="badge bg-secondary me-3">访客模式</span>
-                <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal" id="loginBtn">
-                    <i class="bi bi-person-lock me-1"></i>管理员登录
+<body class="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-200/60">
+
+  <!-- Toast -->
+  <div id="toast-root" class="fixed top-5 right-5 z-[80] space-y-3"></div>
+
+  <!-- Welcome -->
+  <div id="welcome-screen" class="fixed inset-0 z-[70] welcome-bg">
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="absolute -top-24 -left-24 w-[520px] h-[520px] rounded-full welcome-orb"></div>
+      <div class="absolute -bottom-32 -right-32 w-[560px] h-[560px] rounded-full welcome-orb"></div>
+    </div>
+
+    <div class="relative mx-auto max-w-6xl px-6 py-10">
+      <div class="flex items-center justify-between appear">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-pink-500 shadow-lg shadow-indigo-600/20 grid place-items-center text-white font-black">
+            SAC
+          </div>
+          <div class="leading-tight">
+            <div class="font-semibold tracking-tight">SCNU · IBC · SAC</div>
+            <div class="text-xs text-slate-500">Smart Classroom Booking System</div>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center gap-2 text-xs text-slate-500">
+          <span class="px-3 py-1 rounded-full glass">Bilingual UI</span>
+          <span class="px-3 py-1 rounded-full glass">Motion</span>
+          <span class="px-3 py-1 rounded-full glass">FastAPI</span>
+        </div>
+      </div>
+
+      <div class="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+        <div class="lg:col-span-7 appear-up">
+          <div class="glass card rounded-3xl p-8">
+            <div class="text-sm text-slate-500 mb-2">晚上好 / Good evening</div>
+            <h1 class="text-3xl md:text-4xl font-black tracking-tight leading-tight">
+              华南师范大学国际商学院实创中心<br/>
+              <span class="bg-gradient-to-r from-indigo-600 via-pink-500 to-emerald-500 bg-clip-text text-transparent">
+                智能课室预约系统
+              </span>
+              <span class="block text-base md:text-lg font-semibold text-slate-600 mt-2">
+                SCNU IBC SAC Smart Classroom Booking System
+              </span>
+            </h1>
+
+            <p class="mt-4 text-slate-600 leading-relaxed">
+              看板式资源可视化 + 一键预约 + 管理员审核/排课，提升课室资源利用效率与管理体验。
+            </p>
+
+            <div class="mt-7 flex flex-col sm:flex-row gap-3">
+              <button onclick="enterStudentFromWelcome()"
+                      class="btn rounded-2xl px-6 py-3 font-semibold text-white bg-gradient-to-r from-indigo-600 to-pink-500 shadow-lg shadow-indigo-600/20">
+                我要预约 · Book Now
+              </button>
+
+              <button onclick="enterAdminFromWelcome()"
+                      class="btn rounded-2xl px-6 py-3 font-semibold text-slate-800 bg-white/80 border border-slate-200 shadow-sm hover:shadow-md">
+                我是管理员 · Admin
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-5 text-xs text-slate-500">
+            提示：管理员入口需要密码验证（内置：123456）。
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 appear-up" style="animation-delay:.06s;">
+          <div class="glass card rounded-3xl p-6 h-full flex flex-col">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs text-slate-500">Today’s quote</div>
+                <div class="font-semibold">“Make every room matter.”</div>
+              </div>
+              <!-- ✅ 修复点：不再用 Jinja 的 date，改为 JS 注入 -->
+              <div id="day-of-year" class="text-xs px-3 py-1 rounded-full bg-white/70 border border-slate-200">
+                Day --/365
+              </div>
+            </div>
+
+            <div class="mt-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 relative overflow-hidden shadow-xl">
+              <div class="absolute inset-0 opacity-25"
+                   style="background:radial-gradient(600px circle at 20% 10%, rgba(99,102,241,.65), transparent 45%),
+                          radial-gradient(500px circle at 90% 30%, rgba(236,72,153,.55), transparent 45%);">
+              </div>
+              <div class="relative">
+                <div class="text-xs text-white/70">Preview</div>
+                <div class="text-2xl font-black tracking-tight mt-1">资源看板 Dashboard</div>
+                <div class="text-white/70 mt-2 text-sm">
+                  房间 × 日期 × 节次 = 一眼掌控可用性。
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 flex-1 rounded-2xl bg-white/60 border border-slate-200 p-5">
+              <div class="text-xs text-slate-500">Design system</div>
+              <div class="mt-1 font-semibold">Glass · Rounded · Micro-interactions</div>
+              <div class="mt-2 text-sm text-slate-600">
+                抽屉式审核、Toast 通知、课室列搜索筛选。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 text-xs text-slate-500 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>© SCNU IBC SAC · Smart Booking System</div>
+        <div class="flex gap-2">
+          <span class="px-3 py-1 rounded-full glass">Bilingual</span>
+          <span class="px-3 py-1 rounded-full glass">High-end UI</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Shell -->
+  <div id="app-shell" class="hidden">
+    <header class="sticky top-0 z-40">
+      <div class="mx-auto max-w-[1600px] px-5 pt-5">
+        <div class="glass card rounded-3xl px-5 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-pink-500 shadow-lg shadow-indigo-600/20 grid place-items-center text-white font-black">
+              IBC
+            </div>
+            <div class="leading-tight">
+              <div class="text-lg font-bold tracking-tight">课室资源看板 · Dashboard</div>
+              <div class="text-xs text-slate-500">SCNU IBC SAC · Smart Classroom Booking</div>
+            </div>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div class="flex items-center gap-2">
+              <a href="/?view_date={{ prev_week }}{{ '&role=admin' if request.query_params.get('role')=='admin' else '' }}"
+                 class="btn px-4 py-2 rounded-2xl bg-white/70 border border-slate-200 hover:shadow-md text-sm">
+                ← 上周
+              </a>
+              <div class="px-4 py-2 rounded-2xl bg-slate-900 text-white text-sm font-semibold shadow-sm">
+                {{ current_week_start }} 至 {{ next_week }}
+              </div>
+              <a href="/?view_date={{ next_week }}{{ '&role=admin' if request.query_params.get('role')=='admin' else '' }}"
+                 class="btn px-4 py-2 rounded-2xl bg-white/70 border border-slate-200 hover:shadow-md text-sm">
+                下周 →
+              </a>
+            </div>
+
+            <div class="flex items-center gap-2 sm:pl-2">
+              <span class="text-sm font-semibold text-slate-700">身份</span>
+              <select id="role-switch" onchange="handleRoleChange()"
+                      class="px-4 py-2 rounded-2xl bg-white/80 border border-slate-200 text-sm font-semibold text-slate-800 shadow-sm hover:shadow-md focus:outline-none focus:ring-4 focus:ring-indigo-200/50">
+                <option value="student">学生 · Student</option>
+                <option value="admin">管理员 · Admin</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ✅ 升级：课室搜索筛选（隐藏列，不改后端） -->
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div class="lg:col-span-8 glass card rounded-3xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-600/20">可预约 FREE</span>
+              <span class="px-3 py-1 rounded-full bg-rose-500/15 text-rose-700 border border-rose-600/20">课程/占用 COURSE</span>
+              <span class="px-3 py-1 rounded-full bg-amber-500/15 text-amber-800 border border-amber-600/20">已预约 TAKEN</span>
+              <span class="px-3 py-1 rounded-full bg-slate-500/15 text-slate-700 border border-slate-600/20">待审核 PENDING</span>
+              <span class="px-3 py-1 rounded-full bg-indigo-500/12 text-indigo-700 border border-indigo-600/15">周日 SUNDAY</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input id="room-filter"
+                     class="w-64 max-w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm
+                            focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                     placeholder="筛选课室（输入关键字）"
+                     oninput="filterRoomColumns(this.value)">
+              <button class="btn px-4 py-2 rounded-2xl bg-white/70 border border-slate-200 hover:shadow-md text-sm"
+                      onclick="resetRoomFilter()">
+                重置
+              </button>
+            </div>
+          </div>
+
+          <div class="lg:col-span-4 grid grid-cols-2 gap-4">
+            <div class="glass card rounded-3xl p-4">
+              <div class="text-xs text-slate-500">待审核 Pending</div>
+              <div class="text-2xl font-black tracking-tight mt-1">{{ pending_list|length }}</div>
+              <div class="text-xs text-slate-500 mt-1">Admin drawer</div>
+            </div>
+            <div class="glass card rounded-3xl p-4">
+              <div class="text-xs text-slate-500">已通过 Approved</div>
+              <div class="text-2xl font-black tracking-tight mt-1">{{ approved_list|length }}</div>
+              <div class="text-xs text-slate-500 mt-1">History list</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-[1600px] px-5 pb-10 pt-6">
+      <div class="glass card rounded-3xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-bold text-slate-800">资源矩阵 · Availability Matrix</div>
+          <div class="text-xs text-slate-500">输入筛选只隐藏课室列，不影响数据</div>
+        </div>
+
+        <div class="overflow-auto rounded-2xl border border-slate-200/60 bg-white/70">
+          <table id="matrix-table" class="min-w-full border-separate border-spacing-2 text-sm text-center">
+            <thead class="sticky top-0 z-10">
+              <tr class="text-white">
+                <th class="p-3 rounded-2xl bg-slate-900/95">周次</th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">日期</th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">星期</th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">节次</th>
+                {% for room in rooms %}
+                  <!-- ✅ 给每个房间列一个可定位的属性 -->
+                  <th class="p-3 rounded-2xl bg-slate-900/95 min-w-[200px] room-col-head"
+                      data-room-name="{{ room.name }}">
+                    {{ room.name }}
+                  </th>
+                {% endfor %}
+              </tr>
+            </thead>
+
+            <tbody class="align-middle">
+              {% for row in dashboard_rows %}
+              <tr>
+                <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 font-semibold">{{ row.week }}</td>
+                <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 font-semibold">{{ row.date }}</td>
+                <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 font-bold {{ 'text-indigo-700' if row.is_sunday else 'text-slate-700' }}">
+                  {{ row.weekday }}
+                </td>
+                <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-slate-700">{{ row.slot }}</td>
+
+                {% for cell in row.cells %}
+                <td
+                  class="cell p-3 border border-slate-200/60 min-h-[64px] room-col-cell
+                    {% if cell.status == 'FREE' %} cell-free
+                    {% elif cell.status == 'SUNDAY' %} cell-sunday
+                    {% elif cell.status == 'COURSE' %} cell-course
+                    {% elif cell.status == 'TAKEN' %} cell-taken
+                    {% else %} cell-pending {% endif %}"
+                  data-status="{{ cell.status }}"
+                  data-room-id="{{ cell.room_id }}"
+                  data-date="{{ row.date }}"
+                  data-slot="{{ row.slot }}"
+                  data-booking-id="{{ cell.booking.id if cell.booking else '' }}"
+                  data-student="{{ cell.booking.student_name if cell.booking else '' }}"
+                  data-student-id="{{ cell.booking.student_id if cell.booking else '' }}"
+                  data-email="{{ cell.booking.student_email if cell.booking else '' }}"
+                  data-teacher="{{ cell.booking.instructor_name if cell.booking else '' }}"
+                  data-purpose="{{ cell.booking.purpose if cell.booking else '' }}"
+                  onclick="handleCellClick(this)"
+                  onmousemove="setCellSpotlight(event, this)"
+                >
+                  {% if cell.status == 'COURSE' %}
+                    <div class="font-extrabold">{{ cell.booking.student_name }}</div>
+                    <div class="text-xs opacity-80 mt-1">{{ cell.booking.instructor_name }}</div>
+                  {% elif cell.status == 'TAKEN' %}
+                    <div class="font-bold">已预约</div>
+                    <div class="text-xs text-slate-700/70 mt-1">{{ cell.booking.student_name }}</div>
+                  {% elif cell.status == 'PENDING' %}
+                    <div class="font-bold text-slate-700/80">审核中</div>
+                    <div class="text-xs text-slate-500 mt-1">Waiting</div>
+                  {% elif cell.status == 'FREE' %}
+                    <div class="flex items-center justify-center gap-2">
+                      <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-600/20 text-emerald-700 font-black">+</span>
+                      <span class="text-xs text-slate-700 font-semibold opacity-80">Click</span>
+                    </div>
+                  {% else %}
+                    <div class="text-slate-600/80 text-xs">—</div>
+                  {% endif %}
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- Admin Floating -->
+    <button onclick="toggleDrawer()"
+            class="admin-only hidden fixed bottom-7 right-7 z-50 btn rounded-2xl px-5 py-4 text-white font-bold
+                   bg-gradient-to-r from-indigo-600 to-pink-500 shadow-xl shadow-indigo-600/20 flex items-center gap-3">
+      <span class="text-lg">管理申请</span>
+      <span class="px-2 py-1 rounded-full bg-white/20 border border-white/20 text-sm">
+        {{ pending_list|length }}
+      </span>
+    </button>
+
+    <!-- Drawer -->
+    <aside id="audit-drawer" class="drawer fixed inset-y-0 right-0 w-[420px] bg-white z-[60] border-l border-slate-200 shadow-2xl overflow-y-auto">
+      <div class="sticky top-0 bg-white/80 backdrop-blur border-b border-slate-200 p-5 flex items-center justify-between">
+        <div>
+          <div class="text-xs text-slate-500">Admin Center</div>
+          <div class="text-xl font-black tracking-tight">预约管理中心</div>
+        </div>
+        <button onclick="toggleDrawer()" class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl">&times;</button>
+      </div>
+
+      <div class="p-5">
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button onclick="showTab('pending')" id="btn-pending"
+                  class="btn rounded-2xl py-3 font-bold border border-indigo-200 bg-indigo-50 text-indigo-700">
+            待审核 ({{ pending_list|length }})
+          </button>
+          <button onclick="showTab('approved')" id="btn-approved"
+                  class="btn rounded-2xl py-3 font-bold border border-slate-200 bg-white text-slate-600">
+            已通过 ({{ approved_list|length }})
+          </button>
+        </div>
+
+        <!-- Pending -->
+        <div id="tab-pending" class="space-y-4">
+          {% for item in pending_list %}
+          <div class="card rounded-3xl p-4 bg-white border border-slate-200/70 hover:shadow-lg transition">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-lg font-black">{{ item.student_name }}</div>
+                <div class="text-xs text-slate-500">学号: {{ item.student_id }}</div>
+              </div>
+              <div class="text-xs px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600">
+                {{ item.created_at.strftime('%m-%d %H:%M') }}
+              </div>
+            </div>
+
+            <!-- ✅ 升级：显示真实课室名（Booking.room relationship） -->
+            <div class="mt-3 rounded-2xl bg-slate-50 border border-slate-200/60 p-3 text-sm text-slate-700 space-y-1">
+              <div><span class="font-semibold">课室:</span>
+                {{ item.room.name if item.room else ("Room " ~ item.room_id) }}
+              </div>
+              <div><span class="font-semibold">时间:</span> {{ item.booking_date }} | {{ item.slot }}</div>
+              <div><span class="font-semibold">邮箱:</span> {{ item.student_email }}</div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <form action="/audit/{{ item.id }}" method="post">
+                <input type="hidden" name="action" value="approve">
+                <button class="btn w-full rounded-2xl py-3 font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm">
+                  通过
                 </button>
-                <button class="btn btn-danger btn-sm d-none" id="logoutBtn">
-                    <i class="bi bi-box-arrow-right me-1"></i>退出管理
-                </button>
+              </form>
+              <button onclick="openCancelModal('{{ item.id }}', 'reject', 'reject')"
+                      class="btn w-full rounded-2xl py-3 font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm">
+                驳回
+              </button>
             </div>
+          </div>
+          {% else %}
+          <div class="text-center py-10 text-slate-400">
+            <div class="text-lg font-semibold">暂无待审核申请</div>
+            <div class="text-xs mt-1">No pending requests</div>
+          </div>
+          {% endfor %}
         </div>
-    </nav>
 
-    <div class="toast-container">
-        <div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body fw-bold" id="toast-message">
-                    </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        <!-- Approved -->
+        <div id="tab-approved" class="space-y-4 hidden">
+          {% for item in approved_list %}
+          <div class="card rounded-3xl p-4 bg-white border border-slate-200/70">
+            <div class="flex items-center justify-between">
+              <div class="font-black text-slate-800">
+                {% if item.booking_type == 'course' %}
+                  📘 [课程] {{ item.student_name }}
+                {% else %}
+                  👤 {{ item.student_name }} ({{ item.student_id }})
+                {% endif %}
+              </div>
             </div>
+
+            <!-- ✅ 升级：显示真实课室名 -->
+            <div class="mt-3 text-sm text-slate-700 space-y-1">
+              <div><span class="font-semibold">时间:</span> {{ item.booking_date }} · {{ item.slot }}</div>
+              <div><span class="font-semibold">位置:</span>
+                {{ item.room.name if item.room else ("Room " ~ item.room_id) }}
+              </div>
+            </div>
+
+            {% if item.booking_type == 'course' %}
+              <button onclick="openCancelModal('{{ item.id }}', 'delete', 'course_delete')"
+                      class="btn w-full mt-4 rounded-2xl py-2.5 font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700">
+                取消排课
+              </button>
+            {% else %}
+              <button onclick="openCancelModal('{{ item.id }}', 'delete', 'student_delete')"
+                      class="btn w-full mt-4 rounded-2xl py-2.5 font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700">
+                强制取消
+              </button>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="text-center py-10 text-slate-400">
+            <div class="text-lg font-semibold">暂无记录</div>
+            <div class="text-xs mt-1">No approved records</div>
+          </div>
+          {% endfor %}
         </div>
+
+      </div>
+    </aside>
+
+    <!-- Cancel Modal -->
+    <div id="cancel-modal" class="fixed inset-0 z-[65] hidden">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('cancel-modal')"></div>
+      <div class="relative h-full w-full grid place-items-center p-4">
+        <div class="appear card w-full max-w-md rounded-3xl bg-white p-6 border border-slate-200">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-xs text-slate-500">Confirm</div>
+              <h2 class="text-xl font-black" id="cancel-title">确认操作</h2>
+            </div>
+            <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
+                    onclick="closeModal('cancel-modal')">&times;</button>
+          </div>
+
+          <form id="cancel-form" action="" method="post" class="mt-5">
+            <input type="hidden" name="action" id="cancel-action-input">
+            <label class="block text-sm font-bold text-slate-700 mb-2">请选择原因</label>
+            <select name="cancel_reason" id="cancel-reason-select"
+                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-rose-200/40">
+            </select>
+
+            <div class="mt-6 flex justify-end gap-2">
+              <button type="button" class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
+                      onclick="closeModal('cancel-modal')">暂不操作</button>
+              <button type="submit" class="btn px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm">
+                确认提交
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
-    <div class="container-fluid main-container px-4">
-        <div class="row g-4">
-            <div class="col-lg-9">
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm">
-                    <h4 class="m-0 fw-bold text-primary">
-                        <i class="bi bi-table me-2"></i>
-                        {{ current_week_start.strftime('%Y年%m月%d日') }} - {{ next_week.strftime('%m月%d日') }} (第{{ dashboard_rows[0]['week'].replace('第','').replace('周','') }}周)
-                    </h4>
-                    <div class="btn-group" role="group">
-                        <a href="/?view_date={{ prev_week }}" class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i> 上一周</a>
-                        <a href="/" class="btn btn-outline-secondary">本周</a>
-                        <a href="/?view_date={{ next_week }}" class="btn btn-outline-secondary">下一周 <i class="bi bi-chevron-right"></i></a>
-                    </div>
-                </div>
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="fixed inset-0 z-[65] hidden">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('detail-modal')"></div>
+      <div class="relative h-full w-full grid place-items-center p-4">
+        <div class="appear card w-full max-w-md rounded-3xl bg-white p-6 border border-slate-200">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-xs text-slate-500">Record</div>
+              <div class="text-xl font-black">预约详细档案</div>
+            </div>
+            <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
+                    onclick="closeModal('detail-modal')">&times;</button>
+          </div>
 
-                <div class="table-responsive rounded shadow-sm">
-                    <table class="table table-bordered calendar-table mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 90px;">时间段</th>
-                                {% for room in rooms %}
-                                    <th>
-                                        <div>{{ room.name }}</div>
-                                        <small class="text-white-50 fw-light" style="font-size: 0.7rem;">
-                                            <i class="bi bi-people-fill"></i> {{ room.capacity }}人 | {{ room.features }}
-                                        </small>
-                                    </th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in dashboard_rows %}
-                            <tr>
-                                <td class="slot-header">
-                                    <span class="slot-date-tag">{{ row.date.strftime('%m-%d') }} {{ row.weekday }}</span>
-                                    <span class="badge bg-secondary">{{ row.slot_enum.split('_')[1] | replace('_', '-') }}节</span>
-                                    <div style="font-size: 0.7rem; color:#6c757d; margin-top:2px;">{{ row.slot }}</div>
-                                </td>
-                                
-                                {% for cell in row.cells %}
-                                    {% if cell.status == 'FREE' %}
-                                        <td class="cell-base status-free" 
-                                            data-bs-toggle="modal" data-bs-target="#bookingModal"
-                                            data-room-id="{{ cell.room_id }}"
-                                            data-booking-date="{{ row.date }}"
-                                            data-slot-val="{{ row.slot }}"
-                                            title="点击申请预约">
-                                            <i class="bi bi-plus-circle-dotted fs-4"></i>
-                                            <div class="small">可预约</div>
-                                        </td>
-                                    {% elif cell.status == 'COURSE' %}
-                                        <td class="cell-base status-course">
-                                            <strong><i class="bi bi-journal-bookmark-fill"></i> {{ cell.booking.student_name }}</strong>
-                                            <div class="small text-muted">{{ cell.booking.instructor_name }}</div>
-                                        </td>
-                                    {% elif cell.status == 'TAKEN' %}
-                                        <td class="cell-base status-taken" title="{{ cell.booking.purpose }}">
-                                            <div><i class="bi bi-person-check-fill"></i> {{ cell.booking.student_name }}</div>
-                                            <div class="small text-muted text-truncate">{{ cell.booking.purpose }}</div>
-                                        </td>
-                                    {% elif cell.status == 'PENDING' %}
-                                        <td class="cell-base status-pending" title="等待管理员审核">
-                                            <div><i class="bi bi-hourglass-split"></i> {{ cell.booking.student_name }}</div>
-                                            <div class="small badge bg-warning text-dark mt-1">审核中</div>
-                                        </td>
-                                    {% else %}
-                                        <td class="cell-base status-sunday">
-                                            <i class="bi bi-slash-circle"></i> 不开放
-                                        </td>
-                                    {% endif %}
-                                {% endfor %}
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="mt-3 d-flex gap-4 small text-muted justify-content-end">
-                    <span><i class="bi bi-square-fill text-success opacity-50"></i> 可预约</span>
-                    <span><i class="bi bi-square-fill text-warning opacity-50"></i> 审核中</span>
-                    <span><i class="bi bi-square-fill text-danger opacity-50"></i> 已被占用</span>
-                    <span><i class="bi bi-square-fill text-primary opacity-50"></i> 课程占用</span>
-                </div>
+          <div class="mt-5 space-y-3 text-sm">
+            <div class="rounded-2xl bg-slate-50 border border-slate-200/60 p-4">
+              <div class="text-xs text-slate-500">申请人/课程</div>
+              <div id="detail-name" class="text-lg font-black mt-1"></div>
             </div>
 
-            <div class="col-lg-3">
-                <div id="admin-panel" class="d-none">
-                     <div class="alert alert-primary shadow-sm fw-bold">
-                        <i class="bi bi-shield-lock-fill me-2"></i>管理员模式已激活
-                    </div>
-
-                    <div class="card sidebar-card">
-                        <div class="sidebar-header text-warning">
-                            <i class="bi bi-hourglass-split me-2"></i>待审核申请
-                            <span class="badge bg-warning text-dark float-end">{{ pending_list|length }}</span>
-                        </div>
-                        <ul class="list-group list-group-flush">
-                            {% for booking in pending_list %}
-                            <li class="list-group-item booking-list-item border-pending d-flex justify-content-between align-items-start"
-                                data-bs-toggle="modal" data-bs-target="#auditModal"
-                                data-booking-id="{{ booking.id }}"
-                                data-student-name="{{ booking.student_name }}"
-                                data-room-name="{{ booking.room.name }}"
-                                data-time-info="{{ booking.booking_date.strftime('%m-%d') }} {{ booking.slot.value }}"
-                                data-purpose="{{ booking.purpose }}">
-                                <div class="ms-2 me-auto">
-                                    <div class="fw-bold">{{ booking.student_name }}</div>
-                                    <small class="text-muted">{{ booking.booking_date.strftime('%m/%d') }} - {{ booking.room.name }}</small>
-                                </div>
-                                <span class="btn btn-sm btn-outline-primary align-self-center">审核</span>
-                            </li>
-                            {% else %}
-                            <li class="list-group-item text-muted text-center py-3">暂无待审核申请</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    
-                    <div class="card sidebar-card mt-4">
-                         <div class="sidebar-header text-success">
-                            <i class="bi bi-check-circle-fill me-2"></i>近期已通过
-                        </div>
-                        <ul class="list-group list-group-flush">
-                             {% for booking in approved_list[:5] %}
-                            <li class="list-group-item booking-list-item border-approved text-muted small">
-                                 <i class="bi bi-calendar-check me-1"></i>
-                                {{ booking.booking_date.strftime('%m/%d') }} {{ booking.room.name.split('（')[0] }}
-                                <br>
-                                <span class="ms-3">by {{ booking.student_name }}</span>
-                            </li>
-                            {% else %}
-                             <li class="list-group-item text-muted text-center py-3">暂无记录</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-
-                <div id="student-panel">
-                    <div class="card sidebar-card bg-light">
-                        <div class="card-body text-center text-muted p-4">
-                            <i class="bi bi-person-workspace fs-1 d-block mb-3"></i>
-                            <h5 class="fw-bold">欢迎使用预约系统</h5>
-                            <p class="small mb-0">请在左侧日历中点击绿色的“可预约”区域发起申请。</p>
-                            <hr>
-                             <p class="small text-start"><i class="bi bi-info-circle me-1"></i>提示：提交后需等待管理员审核，审核结果将通过邮件通知。</p>
-                        </div>
-                    </div>
-                </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
+                <div class="text-xs text-slate-500">学号/ID</div>
+                <div id="detail-student-id" class="font-semibold mt-1"></div>
+              </div>
+              <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
+                <div class="text-xs text-slate-500">任课/指导老师</div>
+                <div id="detail-teacher" class="font-semibold mt-1"></div>
+              </div>
             </div>
+
+            <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
+              <div class="text-xs text-slate-500">联系邮箱</div>
+              <div id="detail-email" class="font-semibold mt-1 text-indigo-700"></div>
+            </div>
+
+            <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
+              <div class="text-xs text-slate-500">用途</div>
+              <div id="detail-purpose" class="font-semibold mt-1"></div>
+            </div>
+
+            <div class="text-xs text-slate-500 pt-2 border-t border-slate-200">
+              时间: <span id="detail-time" class="font-semibold text-slate-700"></span>
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-end gap-2">
+            <button type="button" class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
+                    onclick="closeModal('detail-modal')">关闭</button>
+            <button id="btn-force-cancel"
+                    class="btn px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm">
+              强制取消
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
-
-    <div class="modal fade" id="bookingModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>提交预约申请</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form action="/submit_booking" method="post">
-                    <div class="modal-body">
-                        <input type="hidden" name="room_id" id="modal_room_id">
-                        <input type="hidden" name="booking_date" id="modal_booking_date">
-                        
-                        <div class="alert alert-light border mb-3">
-                            <div class="d-flex align-items-center text-secondary">
-                                <i class="bi bi-geo-alt-fill fs-5 me-3"></i>
-                                <div>
-                                    <strong id="modal_room_name_display">正在加载...</strong><br>
-                                    <small id="modal_date_display">...</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mb-3 admin-only-field d-none bg-light p-2 rounded border">
-                            <label class="form-label fw-bold d-block">预约模式 (管理员)</label>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="mode" id="mode_student" value="student" checked>
-                                <label class="form-check-label" for="mode_student"><i class="bi bi-person me-1"></i>单次/学生预约</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="mode" id="mode_course" value="course">
-                                <label class="form-check-label fw-bold text-primary" for="mode_course"><i class="bi bi-journal-bookmark me-1"></i>课程排课 (批量)</label>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="modal_slot_select" class="form-label fw-bold">选择时间段 <span class="text-danger">*</span></label>
-                             <select class="form-select" name="slot" id="modal_slot_select" required>
-                                {% for slot_enum in slots_list %}
-                                <option value="{{ slot_enum.value }}">{{ slot_enum.value }}</option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text text-primary d-none" id="course_slot_hint">课程模式下可按住 Ctrl/Shift 多选时间段</div>
-                        </div>
-
-                        <div id="student-fields">
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">学号/工号 <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" name="student_id" required placeholder="例如: 20230001">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">姓名 <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" name="student_name" required placeholder="申请人姓名">
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">联系邮箱 (用于接收通知) <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" name="student_email" required placeholder="name@example.com">
-                            </div>
-                             <div class="mb-3">
-                                <label class="form-label">指导老师 (选填)</label>
-                                <input type="text" class="form-control" name="instructor_name" placeholder="如无则留空">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">申请用途详述 <span class="text-danger">*</span></label>
-                                <textarea class="form-control" name="purpose" rows="3" required placeholder="请详细描述活动内容、参与人数等"></textarea>
-                            </div>
-                        </div>
-
-                         <div id="course-fields" class="d-none p-3 bg-light rounded border border-primary">
-                            <h6 class="text-primary fw-bold mb-3"><i class="bi bi-calendar-range-fill me-2"></i>批量排课设置</h6>
-                            <div class="row g-2 mb-3">
-                                 <div class="col-md-6">
-                                    <label class="form-label">课程名称 <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control course-req" name="course_name" placeholder="例如: 商务数据分析">
-                                </div>
-                                 <div class="col-md-6">
-                                    <label class="form-label">任课教师 <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control course-req" name="course_teacher" placeholder="教师姓名">
-                                </div>
-                            </div>
-                             <div class="row g-2 align-items-end">
-                                <div class="col-5">
-                                    <label class="form-label">起始周 <span class="text-danger">*</span></label>
-                                    <input type="number" class="form-control course-req" name="start_week" min="1" max="20" value="1">
-                                </div>
-                                <div class="col-2 text-center pb-2 fw-bold">至</div>
-                                <div class="col-5">
-                                    <label class="form-label">结束周 <span class="text-danger">*</span></label>
-                                    <input type="number" class="form-control course-req" name="end_week" min="1" max="20" value="16">
-                                </div>
-                            </div>
-                             <div class="form-text mt-2">
-                                <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                                注意：提交后将自动覆盖选定范围内已有的待审核申请。
-                            </div>
-                        </div>
-
-                    </div>
-                    <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="submit" class="btn btn-success px-4" id="submitBtn">
-                            <i class="bi bi-send-fill me-1"></i> 提交申请
-                        </button>
-                    </div>
-                </form>
+    <!-- Student Modal -->
+    <div id="student-modal" class="fixed inset-0 z-[65] hidden">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('student-modal')"></div>
+      <div class="relative h-full w-full grid place-items-center p-4">
+        <div class="appear card w-full max-w-lg rounded-3xl bg-white p-6 border border-slate-200">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-xs text-slate-500">Student</div>
+              <div class="text-xl font-black text-indigo-700">学生预约申请</div>
             </div>
+            <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
+                    onclick="closeModal('student-modal')">&times;</button>
+          </div>
+
+          <form action="/submit_booking" method="post" class="mt-5">
+            <input type="hidden" name="mode" value="student">
+            <input type="hidden" name="room_id" id="stu-room-id">
+            <input type="hidden" name="booking_date" id="stu-date">
+            <input type="hidden" name="slot" id="stu-slot">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">学号</label>
+                <input type="text" name="student_id" required
+                       class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                       placeholder="Student ID">
+              </div>
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">姓名</label>
+                <input type="text" name="student_name" required
+                       class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                       placeholder="Name">
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label class="block text-sm font-bold text-slate-700 mb-1">指导老师（可选）</label>
+              <input type="text" name="instructor_name"
+                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                     placeholder="Instructor">
+            </div>
+
+            <div class="mt-3">
+              <label class="block text-sm font-bold text-slate-700 mb-1">联系邮箱</label>
+              <input type="email" name="student_email" required
+                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                     placeholder="Email">
+            </div>
+
+            <div class="mt-3">
+              <label class="block text-sm font-bold text-slate-700 mb-1">申请用途</label>
+              <input type="text" name="purpose" required
+                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                     placeholder="Purpose">
+            </div>
+
+            <div class="mt-6 flex justify-end gap-2">
+              <button type="button"
+                      class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
+                      onclick="closeModal('student-modal')">取消</button>
+              <button type="submit"
+                      class="btn px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-pink-500 text-white font-bold shadow-lg shadow-indigo-600/20">
+                提交申请
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
 
-    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content text-center">
-                <div class="modal-header border-0 pb-0 justify-content-center">
-                     <h5 class="modal-title fw-bold text-dark"><i class="bi bi-shield-lock text-primary fs-4 d-block mb-2"></i>管理员验证</h5>
-                </div>
-                <div class="modal-body pt-2">
-                    <p class="text-muted small mb-3">请输入管理密码以访问后台功能</p>
-                    <input type="password" id="adminPasswordInput" class="form-control text-center mb-2" placeholder="Password" autofocus>
-                    <div id="loginError" class="text-danger small d-none">密码错误，请重试</div>
-                </div>
-                <div class="modal-footer justify-content-center border-0 pt-0 pb-4">
-                    <button type="button" class="btn btn-primary w-75" id="doLoginBtn">验证身份</button>
-                </div>
+    <!-- Admin Course Modal -->
+    <div id="admin-modal" class="fixed inset-0 z-[65] hidden">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('admin-modal')"></div>
+      <div class="relative h-full w-full grid place-items-center p-4">
+        <div class="appear card w-full max-w-2xl rounded-3xl bg-white p-6 border border-slate-200">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-xs text-slate-500">Admin</div>
+              <div class="text-xl font-black text-rose-700">管理员排课（批量）</div>
             </div>
+            <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
+                    onclick="closeModal('admin-modal')">&times;</button>
+          </div>
+
+          <form action="/submit_booking" method="post" class="mt-5">
+            <input type="hidden" name="mode" value="course">
+            <input type="hidden" name="room_id" id="adm-room-id">
+            <input type="hidden" name="booking_date" id="adm-date">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">课程名称</label>
+                <input type="text" name="course_name" required
+                       class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-rose-200/40"
+                       placeholder="如：Python程序设计">
+              </div>
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">任课老师</label>
+                <input type="text" name="course_teacher" required
+                       class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-rose-200/40"
+                       placeholder="如：王老师">
+              </div>
+            </div>
+
+            <div class="mt-4 rounded-3xl border border-rose-200 bg-rose-50 p-4">
+              <div class="font-bold text-rose-900 text-sm">循环上课周次（默认 1-16 周）</div>
+              <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span>第</span>
+                <input type="number" name="start_week" value="1" min="1" max="20"
+                       class="w-20 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-center font-semibold focus:outline-none focus:ring-4 focus:ring-rose-200/40">
+                <span>周 至 第</span>
+                <input type="number" name="end_week" value="16" min="1" max="20"
+                       class="w-20 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-center font-semibold focus:outline-none focus:ring-4 focus:ring-rose-200/40">
+                <span>周</span>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <div class="font-bold text-sm text-slate-700 mb-2">选择上课节次</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-3xl border border-slate-200 bg-slate-50 p-3">
+                {% for s in slots_list %}
+                <label class="btn flex items-center gap-3 rounded-2xl bg-white border border-slate-200 px-3 py-2 hover:shadow-sm cursor-pointer">
+                  <input type="checkbox" name="slot" value="{{ s.value }}" class="w-5 h-5 accent-rose-600">
+                  <span class="text-sm font-semibold text-slate-800">{{ s.value }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-2">
+              <button type="button"
+                      class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
+                      onclick="closeModal('admin-modal')">取消</button>
+              <button type="submit"
+                      class="btn px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm">
+                确认添加
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
 
-    <div class="modal fade" id="auditModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow">
-                <div class="modal-header bg-warning bg-gradient">
-                    <h5 class="modal-title text-dark fw-bold"><i class="bi bi-clipboard-check-fill me-2"></i>审核预约申请</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form id="auditForm" method="post">
-                    <div class="modal-body">
-                        <div class="card bg-light border-0 mb-3">
-                            <div class="card-body pt-2 pb-2">
-                                <h5 class="card-title mb-1 fw-bold text-primary" id="audit_student_name"></h5>
-                                <p class="card-text text-muted small mb-2">
-                                    <i class="bi bi-clock-history me-1"></i><span id="audit_time_info"></span><br>
-                                    <i class="bi bi-geo-alt-fill me-1"></i><span id="audit_room_name"></span>
-                                </p>
-                                <hr class="my-2">
-                                <p class="card-text fst-italic" id="audit_purpose_display" style="white-space: pre-wrap;"></p>
-                            </div>
-                        </div>
-                        
-                        <div class="collapse" id="rejectReasonCollapse">
-                            <div class="mb-3">
-                                <label for="cancel_reason" class="form-label fw-bold text-danger">请填写驳回/取消原因 <span class="text-danger">*</span></label>
-                                <textarea class="form-control" id="cancel_reason" name="cancel_reason" rows="2" placeholder="例如：该时段已有重要活动安排..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer bg-light justify-content-between">
-                        <div class="btn-group">
-                             <button type="button" class="btn btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#rejectReasonCollapse" aria-expanded="false">
-                                 <i class="bi bi-x-circle me-1"></i>准备驳回...
-                             </button>
-                            <button type="submit" name="action" value="reject" class="btn btn-danger collapse" id="realRejectBtn" data-bs-parent="#auditModal">
-                                 确认驳回
-                             </button>
-                         </div>
+    <!-- Password Modal -->
+    <div id="password-modal" class="fixed inset-0 z-[75] hidden">
+      <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onclick="cancelLogin()"></div>
+      <div class="relative h-full w-full grid place-items-center p-4">
+        <div class="appear card w-full max-w-md rounded-3xl bg-white p-7 border border-slate-200 text-center">
+          <div class="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-pink-500 text-white font-black grid place-items-center shadow-lg shadow-indigo-600/20">
+            🔐
+          </div>
+          <div class="mt-4 text-xs text-slate-500">Admin Verification</div>
+          <div class="text-xl font-black mt-1">管理员登录</div>
 
-                        <button type="submit" name="action" value="approve" class="btn btn-success px-4 fw-bold">
-                            <i class="bi bi-check-lg me-1"></i> 通 过 申 请
-                        </button>
-                    </div>
-                </form>
-            </div>
+          <input type="password" id="admin-password-input"
+                 class="mt-5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg tracking-widest
+                        focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
+                 placeholder="请输入密码 (123456)"
+                 onkeydown="if(event.key === 'Enter') verifyPassword()">
+
+          <div class="mt-5 flex justify-center gap-2">
+            <button onclick="cancelLogin()"
+                    class="btn px-6 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 font-semibold">
+              取消
+            </button>
+            <button onclick="verifyPassword()"
+                    class="btn px-6 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-pink-500 text-white font-bold shadow-lg shadow-indigo-600/20">
+              登录
+            </button>
+          </div>
+
+          <div class="mt-4 text-xs text-slate-500">
+            仅用于进入管理员审核/排课界面（系统内置密码）。
+          </div>
         </div>
+      </div>
     </div>
 
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script>
-        // ================= 全局变量与工具函数 =================
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentRole = urlParams.get('role') || 'student';
-        
-        // 房间信息映射 (用于模态框快速显示)
-        const roomsMap = {};
-        {% for room in rooms %}
-        roomsMap[{{ room.id }}] = "{{ room.name }}";
-        {% endfor %}
+  <script>
+    let isAdminLoggedIn = false;
 
-        // 显示 Toast 消息
-        function showToast(message, type = 'success') {
-            const toastEl = document.getElementById('liveToast');
-            const toastBody = document.getElementById('toast-message');
-            toastBody.textContent = message;
-            toastEl.classList.remove('bg-success', 'bg-danger', 'bg-warning');
-            toastEl.classList.add(type === 'error' ? 'bg-danger' : (type === 'warning' ? 'bg-warning' : 'bg-success'));
-            
-            const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
-            toast.show();
+    function toast(type, title, desc){
+      const root = document.getElementById('toast-root');
+      const el = document.createElement('div');
+
+      const palette = {
+        success: "border-emerald-200 bg-emerald-50 text-emerald-900",
+        info: "border-indigo-200 bg-indigo-50 text-indigo-900",
+        warning: "border-amber-200 bg-amber-50 text-amber-950",
+        error: "border-rose-200 bg-rose-50 text-rose-900"
+      }[type] || "border-slate-200 bg-white text-slate-900";
+
+      el.className = `toast-enter card rounded-2xl border ${palette} px-4 py-3 shadow-lg max-w-sm`;
+      el.innerHTML = `
+        <div class="flex items-start gap-3">
+          <div class="mt-0.5 w-2.5 h-2.5 rounded-full ${type==='success'?'bg-emerald-500':type==='error'?'bg-rose-500':type==='warning'?'bg-amber-500':'bg-indigo-500'}"></div>
+          <div class="flex-1">
+            <div class="font-bold text-sm">${title}</div>
+            ${desc ? `<div class="text-xs opacity-80 mt-0.5 leading-relaxed">${desc}</div>` : ``}
+          </div>
+          <button class="ml-2 text-lg leading-none opacity-60 hover:opacity-100">&times;</button>
+        </div>
+      `;
+      el.querySelector('button').onclick = () => removeToast(el);
+      root.appendChild(el);
+      setTimeout(()=>removeToast(el), 3200);
+    }
+    function removeToast(el){
+      if(!el) return;
+      el.classList.remove('toast-enter');
+      el.classList.add('toast-exit');
+      setTimeout(()=>{ try{ el.remove(); }catch(e){} }, 220);
+    }
+
+    function setCellSpotlight(e, el){
+      const r = el.getBoundingClientRect();
+      const mx = ((e.clientX - r.left) / r.width) * 100;
+      const my = ((e.clientY - r.top) / r.height) * 100;
+      el.style.setProperty('--mx', mx + '%');
+      el.style.setProperty('--my', my + '%');
+    }
+
+    function showWelcome(){
+      document.getElementById('welcome-screen').classList.remove('hidden');
+      document.getElementById('app-shell').classList.add('hidden');
+    }
+    function hideWelcome(){
+      document.getElementById('welcome-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.remove('hidden');
+    }
+
+    function setRoleParam(role){
+      const url = new URL(window.location.href);
+      url.searchParams.set('role', role);
+      window.history.replaceState({}, "", url.toString());
+    }
+
+    function enterStudentFromWelcome(){
+      hideWelcome();
+      const roleSelect = document.getElementById('role-switch');
+      roleSelect.value = 'student';
+      setRoleParam('student');
+      updateUIForRole();
+      toast('info', '进入学生端', '点击绿色格子发起预约申请。');
+    }
+
+    function enterAdminFromWelcome(){
+      hideWelcome();
+      document.getElementById('password-modal').classList.remove('hidden');
+      const inp = document.getElementById('admin-password-input');
+      inp.value = '';
+      inp.focus();
+    }
+
+    function handleRoleChange() {
+      const role = document.getElementById('role-switch').value;
+      if (role === 'admin') {
+        if (!isAdminLoggedIn) {
+          document.getElementById('password-modal').classList.remove('hidden');
+          const inp = document.getElementById('admin-password-input');
+          inp.value = '';
+          inp.focus();
+          document.getElementById('role-switch').value = 'student';
+          toast('warning', '需要管理员验证', '请输入密码以进入审核/排课界面。');
+        } else {
+          setRoleParam('admin');
+          updateUIForRole();
+          toast('info', '管理员模式', '你可以打开右下角管理抽屉进行审核。');
         }
+      } else {
+        setRoleParam('student');
+        updateUIForRole();
+        toast('info', '学生模式', '点击绿色格子发起预约申请。');
+      }
+    }
 
-        // ================= 页面初始化逻辑 =================
-        document.addEventListener('DOMContentLoaded', function() {
-            
-            // 1. 处理 URL 消息参数，弹出 Toast
-            const msg = urlParams.get('msg');
-            if (msg) {
-                const msgMap = {
-                    'submitted': ['申请提交成功！请留意邮件通知。', 'success'],
-                    'course_added': ['课程排课成功！冲突时段已自动处理。', 'success'],
-                    'audit_done': ['审核操作已完成。', 'success'],
-                    'error_conflict': ['提交失败：该时段已被占用或锁定。', 'error'],
-                    'error': ['操作失败，请重试或联系管理员。', 'error']
-                };
-                if (msgMap[msg]) {
-                    showToast(msgMap[msg][0], msgMap[msg][1]);
-                    // 清除 URL 中的 msg 参数，防止刷新重复弹出
-                    const newUrl = window.location.pathname + window.location.search.replace(/[\?&]msg=[^&]+/, '').replace(/^&/, '?');
-                    window.history.replaceState({}, '', newUrl);
-                }
-            }
+    function verifyPassword() {
+      const pwd = document.getElementById('admin-password-input').value;
+      const formData = new FormData();
+      formData.append('password', pwd);
 
-            // 2. 根据角色调整 UI
-            if (currentRole === 'admin') {
-                document.getElementById('admin-panel').classList.remove('d-none');
-                document.getElementById('student-panel').classList.add('d-none');
-                document.getElementById('role-badge').textContent = '管理员模式';
-                document.getElementById('role-badge').classList.replace('bg-secondary', 'bg-primary');
-                document.getElementById('loginBtn').classList.add('d-none');
-                document.getElementById('logoutBtn').classList.remove('d-none');
-                // 显示预约模态框中的管理员专有选项
-                document.querySelectorAll('.admin-only-field').forEach(el => el.classList.remove('d-none'));
-            }
+      fetch('/api/validate_password', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) {
+            isAdminLoggedIn = true;
+            document.getElementById('password-modal').classList.add('hidden');
+            document.getElementById('role-switch').value = 'admin';
+            setRoleParam('admin');
+            updateUIForRole();
+            toast('success', '验证通过', '已进入管理员界面。');
+          } else {
+            toast('error', '密码错误', '请重新输入。');
+            const inp = document.getElementById('admin-password-input');
+            inp.value = '';
+            inp.focus();
+          }
+        })
+        .catch(() => toast('error', '网络错误', '无法验证管理员密码。'));
+    }
 
-            // 3. 绑定退出按钮事件
-            document.getElementById('logoutBtn').addEventListener('click', function() {
-                window.location.href = '/'; // 回到首页即退出
-            });
+    function cancelLogin() {
+      document.getElementById('password-modal').classList.add('hidden');
+      document.getElementById('role-switch').value = 'student';
+      setRoleParam('student');
+      updateUIForRole();
+    }
 
-            // ================= 模态框事件绑定 =================
+    function updateUIForRole() {
+      const role = document.getElementById('role-switch').value;
+      document.querySelectorAll('.admin-only').forEach(el => {
+        el.style.display = (role === 'admin') ? 'flex' : 'none';
+      });
+      if(role !== 'admin'){
+        document.getElementById('audit-drawer').classList.remove('open');
+      }
+    }
 
-            // [预约模态框] 显示前的数据填充
-            const bookingModal = document.getElementById('bookingModal');
-            bookingModal.addEventListener('show.bs.modal', function (event) {
-                const triggerCell = event.relatedTarget; // 触发模态框的单元格
-                
-                // 填充隐藏字段
-                const roomId = triggerCell.getAttribute('data-room-id');
-                const dateStr = triggerCell.getAttribute('data-booking-date');
-                const slotVal = triggerCell.getAttribute('data-slot-val');
+    function openCancelModal(bookingId, actionType, scenario) {
+      document.getElementById('cancel-modal').classList.remove('hidden');
+      document.getElementById('cancel-form').action = "/audit/" + bookingId;
+      document.getElementById('cancel-action-input').value = actionType;
 
-                document.getElementById('modal_room_id').value = roomId;
-                document.getElementById('modal_booking_date').value = dateStr;
-                
-                // 更新 UI 显示文本
-                document.getElementById('modal_room_name_display').textContent = roomsMap[roomId] || '未知课室';
-                document.getElementById('modal_date_display').textContent = `${dateStr}`;
+      const select = document.getElementById('cancel-reason-select');
+      const title = document.getElementById('cancel-title');
+      select.innerHTML = '';
 
-                // 重置表单状态（默认回学生模式）
-                document.getElementById('mode_student').checked = true;
-                toggleBookingMode('student');
-                // 预选当前时间段
-                const slotSelect = document.getElementById('modal_slot_select');
-                slotSelect.value = slotVal;
-            });
+      let options = [];
+      if (scenario === 'reject') {
+        title.innerText = "确认驳回申请";
+        options = ["本人填写信息有误", "预约请求和学院其它活动冲突"];
+      } else if (scenario === 'course_delete') {
+        title.innerText = "确认取消课程";
+        options = ["教师需要调课", "上课场所和其它安排冲突"];
+      } else {
+        title.innerText = "确认取消预约";
+        options = ["本人自愿申请取消", "与其它活动课程冲突"];
+      }
+      options.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.innerText = opt;
+        select.appendChild(o);
+      });
 
-            // [预约模态框] 模式切换监听 (学生 vs 课程)
-            document.querySelectorAll('input[name="mode"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    toggleBookingMode(this.value);
-                });
-            });
+      closeModal('detail-modal');
+    }
 
-            function toggleBookingMode(mode) {
-                const studentFields = document.getElementById('student-fields');
-                const courseFields = document.getElementById('course-fields');
-                const slotSelect = document.getElementById('modal_slot_select');
-                const slotHint = document.getElementById('course_slot_hint');
-                const submitBtn = document.getElementById('submitBtn');
-                const studentInputs = studentFields.querySelectorAll('input, textarea');
-                const courseInputs = courseFields.querySelectorAll('.course-req');
+    function handleCellClick(el) {
+      const status = el.dataset.status;
+      const role = document.getElementById('role-switch').value;
+      const bookingId = el.dataset.bookingId;
 
-                if (mode === 'course') {
-                    studentFields.classList.add('d-none');
-                    courseFields.classList.remove('d-none');
-                    studentInputs.forEach(input => input.removeAttribute('required'));
-                    courseInputs.forEach(input => input.setAttribute('required', ''));
-                    // 课程模式允许时间段多选
-                    slotSelect.setAttribute('multiple', '');
-                    slotHint.classList.remove('d-none');
-                    submitBtn.innerHTML = '<i class="bi bi-journal-plus me-1"></i> 确认排课';
-                    submitBtn.classList.replace('btn-success', 'btn-primary');
-                } else {
-                    studentFields.classList.remove('d-none');
-                    courseFields.classList.add('d-none');
-                    studentInputs.forEach(input => input.setAttribute('required', ''));
-                    courseInputs.forEach(input => input.removeAttribute('required'));
-                    // 学生模式恢复单选
-                    slotSelect.removeAttribute('multiple');
-                    slotHint.classList.add('d-none');
-                    submitBtn.innerHTML = '<i class="bi bi-send-fill me-1"></i> 提交申请';
-                    submitBtn.classList.replace('btn-primary', 'btn-success');
-                    // 确保切回单选时只保留一个选中值
-                    if (slotSelect.selectedOptions.length > 1) {
-                         slotSelect.value = slotSelect.selectedOptions[0].value;
-                    }
-                }
-            }
+      if (status === 'SUNDAY') return toast('info', '周日休息', 'Sunday off.');
 
+      if (role === 'admin' && (status === 'TAKEN' || status === 'COURSE')) {
+        document.getElementById('detail-modal').classList.remove('hidden');
+        document.getElementById('detail-name').innerText = el.dataset.student;
+        document.getElementById('detail-student-id').innerText = el.dataset.studentId || 'N/A';
+        document.getElementById('detail-teacher').innerText = el.dataset.teacher || '无';
+        document.getElementById('detail-email').innerText = el.dataset.email || '无';
+        document.getElementById('detail-purpose').innerText = el.dataset.purpose || '无';
+        document.getElementById('detail-time').innerText = el.dataset.date + " " + el.dataset.slot;
 
-            // [审核模态框] 显示前的数据填充
-            const auditModal = document.getElementById('auditModal');
-            auditModal.addEventListener('show.bs.modal', function(event) {
-                 const triggerItem = event.relatedTarget;
-                 const bookingId = triggerItem.getAttribute('data-booking-id');
+        const isCourse = (status === 'COURSE');
+        const scenario = isCourse ? 'course_delete' : 'student_delete';
+        document.getElementById('btn-force-cancel').onclick = function() {
+          openCancelModal(bookingId, 'delete', scenario);
+        };
+        return;
+      }
 
-                 // 设置表单提交地址
-                 document.getElementById('auditForm').action = `/audit/${bookingId}`;
+      if (role === 'admin') {
+        if (status === 'FREE') openAdminModal(el.dataset.roomId, el.dataset.date);
+        else if (status === 'PENDING') toast('info', '待审核申请', '请打开右下角管理抽屉进行审核。');
+        else toast('warning', '不可操作', '该时段已被占用。');
+      } else {
+        if (status === 'FREE') openStudentModal(el.dataset.roomId, el.dataset.date, el.dataset.slot);
+        else toast('warning', '该时段不可用', '请更换日期/节次或课室。');
+      }
+    }
 
-                 // 填充信息显示
-                 document.getElementById('audit_student_name').textContent = triggerItem.getAttribute('data-student-name');
-                 document.getElementById('audit_room_name').textContent = triggerItem.getAttribute('data-room-name');
-                 document.getElementById('audit_time_info').textContent = triggerItem.getAttribute('data-time-info');
-                 document.getElementById('audit_purpose_display').textContent = triggerItem.getAttribute('data-purpose');
+    function openStudentModal(r, d, s) {
+      document.getElementById('student-modal').classList.remove('hidden');
+      document.getElementById('stu-room-id').value = r;
+      document.getElementById('stu-date').value = d;
+      document.getElementById('stu-slot').value = s;
+    }
+    function openAdminModal(r, d) {
+      document.getElementById('admin-modal').classList.remove('hidden');
+      document.getElementById('adm-room-id').value = r;
+      document.getElementById('adm-date').value = d;
+      document.querySelectorAll('#admin-modal input[type="checkbox"]').forEach(cb => cb.checked = false);
+    }
 
-                 // 重置驳回区域状态
-                 document.getElementById('rejectReasonCollapse').classList.remove('show');
-                 document.getElementById('cancel_reason').value = '';
-                 document.getElementById('cancel_reason').removeAttribute('required');
-            });
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function toggleDrawer() { document.getElementById('audit-drawer').classList.toggle('open'); }
 
-            // [审核模态框] 驳回输入框展开时，设置理由为必填，并显示真正的驳回按钮
-            const rejectCollapse = document.getElementById('rejectReasonCollapse');
-            rejectCollapse.addEventListener('shown.bs.collapse', function () {
-                document.getElementById('cancel_reason').setAttribute('required', '');
-                document.getElementById('realRejectBtn').classList.add('show');
-                document.querySelector('[data-bs-target="#rejectReasonCollapse"]').classList.add('d-none'); // 隐藏“准备驳回”按钮
-            });
-             rejectCollapse.addEventListener('hidden.bs.collapse', function () {
-                document.getElementById('cancel_reason').removeAttribute('required');
-                document.getElementById('realRejectBtn').classList.remove('show');
-                 document.querySelector('[data-bs-target="#rejectReasonCollapse"]').classList.remove('d-none');
-            });
+    function showTab(tabName) {
+      const btnPending = document.getElementById('btn-pending');
+      const btnApproved = document.getElementById('btn-approved');
+      if (tabName === 'pending') {
+        document.getElementById('tab-pending').classList.remove('hidden');
+        document.getElementById('tab-approved').classList.add('hidden');
+        btnPending.className = "btn rounded-2xl py-3 font-bold border border-indigo-200 bg-indigo-50 text-indigo-700";
+        btnApproved.className = "btn rounded-2xl py-3 font-bold border border-slate-200 bg-white text-slate-600";
+      } else {
+        document.getElementById('tab-pending').classList.add('hidden');
+        document.getElementById('tab-approved').classList.remove('hidden');
+        btnApproved.className = "btn rounded-2xl py-3 font-bold border border-indigo-200 bg-indigo-50 text-indigo-700";
+        btnPending.className = "btn rounded-2xl py-3 font-bold border border-slate-200 bg-white text-slate-600";
+      }
+    }
 
+    // ✅ 升级：课室列筛选（按房间名隐藏列）
+    function filterRoomColumns(keyword){
+      keyword = (keyword || '').trim().toLowerCase();
 
-            // ================= 管理员登录逻辑 =================
-            document.getElementById('doLoginBtn').addEventListener('click', async function() {
-                const password = document.getElementById('adminPasswordInput').value;
-                const errorDiv = document.getElementById('loginError');
-                const btn = this;
+      const table = document.getElementById('matrix-table');
+      if(!table) return;
 
-                if (!password) {
-                    errorDiv.textContent = "请输入密码";
-                    errorDiv.classList.remove('d-none');
-                    return;
-                }
+      const headCells = Array.from(table.querySelectorAll('thead th'));
+      // 前4列固定：周次/日期/星期/节次
+      const roomHeads = headCells.slice(4);
 
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>验证中...';
-                errorDiv.classList.add('d-none');
+      roomHeads.forEach((th, idx) => {
+        const name = (th.dataset.roomName || th.textContent || '').toLowerCase();
+        const show = !keyword || name.includes(keyword);
 
-                try {
-                    const formData = new FormData();
-                    formData.append('password', password);
+        // 真实列索引（在 tr 里的位置）
+        const colIndex = 4 + idx;
 
-                    const response = await fetch('/api/validate_password', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
+        // header
+        th.style.display = show ? '' : 'none';
 
-                    if (data.valid) {
-                        // 验证成功，刷新页面并带上 role=admin 参数
-                        const currentUrl = new URL(window.location.href);
-                        currentUrl.searchParams.set('role', 'admin');
-                        window.location.href = currentUrl.toString();
-                    } else {
-                        errorDiv.textContent = "密码错误，请重试";
-                        errorDiv.classList.remove('d-none');
-                        btn.disabled = false;
-                        btn.textContent = '验证身份';
-                    }
-                } catch (err) {
-                    errorDiv.textContent = "网络错误，请稍后再试";
-                    errorDiv.classList.remove('d-none');
-                    btn.disabled = false;
-                    btn.textContent = '验证身份';
-                    console.error(err);
-                }
-            });
+        // body each row td
+        Array.from(table.tBodies[0].rows).forEach(tr => {
+          const cell = tr.cells[colIndex];
+          if(cell) cell.style.display = show ? '' : 'none';
+        });
+      });
+    }
+    function resetRoomFilter(){
+      const input = document.getElementById('room-filter');
+      if(input) input.value = '';
+      filterRoomColumns('');
+    }
 
-            // 登录框回车提交
-            document.getElementById('adminPasswordInput').addEventListener('keypress', function(e) {
-                if(e.key === 'Enter') document.getElementById('doLoginBtn').click();
-            });
+    // ✅ Day of year 用 JS 计算，彻底避免 Jinja date 变量
+    function setDayOfYear(){
+      const now = new Date();
+      const start = new Date(now.getFullYear(), 0, 0);
+      const diff = now - start;
+      const oneDay = 1000 * 60 * 60 * 24;
+      const day = Math.floor(diff / oneDay);
+      const el = document.getElementById('day-of-year');
+      if(el) el.textContent = `Day ${day}/365`;
+    }
 
-        }); // end DOMContentLoaded
-    </script>
+    window.onload = function() {
+      setDayOfYear();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const msg = urlParams.get('msg');
+      const roleParam = urlParams.get('role');
+
+      if (!roleParam) showWelcome();
+      else hideWelcome();
+
+      if (roleParam === 'admin') {
+        isAdminLoggedIn = true;
+        document.getElementById('role-switch').value = 'admin';
+      } else {
+        document.getElementById('role-switch').value = 'student';
+      }
+      updateUIForRole();
+      showTab('pending');
+
+      if (msg === 'submitted') toast('success', "申请已提交", "请等待助理审核结果（如填写邮箱，审核结果将邮件通知）。");
+      else if (msg === 'audit_done') toast('success', "操作完成", "系统已处理审核/取消，并在需要时发送邮件通知。");
+      else if (msg === 'course_added') toast('success', "课程排课成功", "课程记录已写入系统（课程不发送邮件通知）。");
+      else if (msg === 'error_conflict') toast('error', "冲突占用", "该时段刚刚被占用，请选择其他时段或课室。");
+    };
+  </script>
 </body>
 </html>
