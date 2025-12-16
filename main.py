@@ -1,18 +1,3 @@
-# 👇 --- [PATCH START] 强制使用 IPv4 (修正版) ---
-import socket
-
-# 1. 先把系统原来的函数存起来，防止死循环
-_original_getaddrinfo = socket.getaddrinfo
-
-def getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
-    # 2. 调用原来的函数，但强制指定 family=AF_INET (IPv4)
-    return _original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-
-# 3. 覆盖系统函数
-socket.getaddrinfo = getaddrinfo_ipv4
-# 👆 --- [PATCH END] ---
-
-import os
 from fastapi import FastAPI, Depends, Request, Form, Query, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
@@ -26,15 +11,15 @@ from email.header import Header
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-SEMESTER_START = date(2025, 9, 8)
+SEMESTER_START = date(2025, 9, 8) 
 
-# --- 📧 邮件配置 (Gmail版 + 465 SSL) ---
+# --- 📧 邮件配置 ---
 SMTP_CONFIG = {
-    "ENABLE": True,
-    "SERVER": "smtp.gmail.com",
-    "PORT": 465,
-    "EMAIL": "chenxz1219@gmail.com",
-    "PASSWORD": "gtuiqwuvjakypghq" 
+    "ENABLE": True, 
+    "SERVER": "smtp.163.com", 
+    "PORT": 465, 
+    "EMAIL": "13925548126@163.com", 
+    "PASSWORD": "NJuBf6xSk2YdKTQH" 
 }
 
 def get_week_info(target_date: date):
@@ -49,30 +34,17 @@ def get_date_by_week_and_weekday(week_num: int, weekday_idx: int):
 
 def send_email_task(to_email: str, subject: str, body: str):
     print(f"====== [模拟邮件发送] ======\n收件人: {to_email}\n标题: {subject}\n内容:\n{body}\n===========================")
-    
     if not SMTP_CONFIG["ENABLE"] or "your_email" in SMTP_CONFIG["EMAIL"]:
-        print("❌ 邮件功能已关闭或未配置，跳过发送")
         return
-
     try:
         msg = MIMEText(body, 'plain', 'utf-8')
         msg['From'] = SMTP_CONFIG["EMAIL"]
         msg['To'] = to_email
         msg['Subject'] = Header(subject, 'utf-8')
-        
-        print(f"1. [IPv4模式] 正在连接 Gmail (端口 {SMTP_CONFIG['PORT']})...")
-        
-        # 使用 SMTP_SSL (465端口) + 30秒超时
-        server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"], timeout=30)
-        
-        print("2. 连接成功，正在登录...")
+        server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"])
         server.login(SMTP_CONFIG["EMAIL"], SMTP_CONFIG["PASSWORD"])
-        
-        print("3. 登录成功，正在发送...")
         server.send_message(msg)
         server.quit()
-        
-        print("✅ 邮件发送成功！") 
     except Exception as e:
         print(f"❌ 邮件发送失败: {e}")
 
@@ -141,9 +113,7 @@ def dashboard(
 
 @app.post("/api/validate_password")
 def validate_password(password: str = Form(...)):
-    # 这里也可以改成从环境变量读取密码，更安全
-    admin_pwd = os.getenv("ADMIN_PASSWORD", "123456")
-    if password == admin_pwd:
+    if password == "123456":
         return {"valid": True}
     else:
         return {"valid": False}
@@ -189,6 +159,7 @@ async def submit_booking(
                 session.add(new_booking)
         
         session.commit()
+        # 排课成功 (不发邮件)
         return RedirectResponse(url="/?msg=course_added&role=admin", status_code=303)
             
     else:
@@ -225,10 +196,12 @@ def audit_booking(
     room_name = booking.room.name if booking.room else f"Room {booking.room_id}"
     email_target = booking.student_email
 
+    # 【新逻辑】判断是否需要发邮件 (课程不发，学生发)
     should_send_email = (booking.booking_type == BookingType.STUDENT) and email_target
 
     if action == "approve":
         booking.status = BookingStatus.APPROVED
+        # 处理冲突
         conflicts = session.exec(select(Booking).where(
             Booking.room_id == booking.room_id, Booking.booking_date == booking.booking_date,
             Booking.slot == booking.slot, Booking.status == BookingStatus.PENDING, Booking.id != booking.id
@@ -266,6 +239,7 @@ IBC实创中心助理
         booking.status = BookingStatus.REJECTED 
         booking.admin_comment = cancel_reason
         
+        # 只有是“学生预约”时，才发送驳回/取消邮件
         if should_send_email:
             title_prefix = "申请驳回" if is_rejection else "预约取消"
             subject = f"【{title_prefix}通知】{booking.booking_date} {room_name}"
