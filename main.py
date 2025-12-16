@@ -1,4 +1,4 @@
-import os  # 👈 1. 新增：必须引入这个模块
+import os
 from fastapi import FastAPI, Depends, Request, Form, Query, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
@@ -12,19 +12,16 @@ from email.header import Header
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-SEMESTER_START = date(2025, 9, 8) 
+SEMESTER_START = date(2025, 9, 8)
 
 # --- 📧 邮件配置 (Gmail版) ---
 SMTP_CONFIG = {
-    "ENABLE": True, 
-    "SERVER": "smtp.gmail.com",   # 👈 必须是这个
-    "PORT": 465,                  # 👈 必须是 465
-    "EMAIL": "chenxz1219@gmail.com", 
-    "PASSWORD": "gtuiqwuvjakypghq"  # 👈 填在这里
+    "ENABLE": True,
+    "SERVER": "smtp.gmail.com",
+    "PORT": 465,
+    "EMAIL": "chenxz1219@gmail.com",
+    "PASSWORD": "gtuiqwuvjakypghq"  # ⚠️ 再次提醒：如果这个密码之前泄露过，建议去Google重新生成一个
 }
-
-# 下面的发送逻辑不用动，只要确保是 SMTP_SSL 即可
-# server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"])
 
 def get_week_info(target_date: date):
     delta_days = (target_date - SEMESTER_START).days
@@ -45,26 +42,28 @@ def send_email_task(to_email: str, subject: str, body: str):
     if not SMTP_CONFIG["ENABLE"] or "your_email" in SMTP_CONFIG["EMAIL"]:
         print("❌ 邮件功能已关闭或未配置，跳过发送")
         return
-  try:
+
+    # ✅ 修复点：try 必须和上面的 if 对齐 (4个空格)
+    try:
         msg = MIMEText(body, 'plain', 'utf-8')
         msg['From'] = SMTP_CONFIG["EMAIL"]
         msg['To'] = to_email
         msg['Subject'] = Header(subject, 'utf-8')
         
-        print("1. 正在尝试连接 Gmail 服务器...")  # 👈 新增
+        print("1. 正在尝试连接 Gmail 服务器...")
         server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"])
         
-        print("2. 连接成功，正在登录...")         # 👈 新增
+        print("2. 连接成功，正在登录...")
         server.login(SMTP_CONFIG["EMAIL"], SMTP_CONFIG["PASSWORD"])
         
-        print("3. 登录成功，正在发送...")         # 👈 新增
+        print("3. 登录成功，正在发送...")
         server.send_message(msg)
         server.quit()
         
         print("✅ 邮件发送成功！") 
     except Exception as e:
         print(f"❌ 邮件发送失败: {e}")
-        
+
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
@@ -281,5 +280,3 @@ IBC实创中心助理
     session.add(booking)
     session.commit()
     return RedirectResponse(url="/?msg=audit_done&role=admin", status_code=303)
-
-
