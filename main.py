@@ -36,27 +36,30 @@ def get_date_by_week_and_weekday(week_num: int, weekday_idx: int):
 def send_email_task(to_email: str, subject: str, body: str):
     print(f"====== [模拟邮件发送] ======\n收件人: {to_email}\n标题: {subject}\n内容:\n{body}\n===========================")
     
-    # 这里加个日志，看看当前的真实开关状态
     print(f"📧 当前邮件开关状态: {SMTP_CONFIG['ENABLE']}")
     
     if not SMTP_CONFIG["ENABLE"] or "your_email" in SMTP_CONFIG["EMAIL"]:
         print("❌ 邮件功能已关闭或未配置，跳过发送")
         return
 
-    # ✅ 修复点：try 必须和上面的 if 对齐 (4个空格)
     try:
         msg = MIMEText(body, 'plain', 'utf-8')
         msg['From'] = SMTP_CONFIG["EMAIL"]
         msg['To'] = to_email
         msg['Subject'] = Header(subject, 'utf-8')
         
-        print("1. 正在尝试连接 Gmail 服务器...")
-        server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"])
+        print(f"1. 正在连接 Gmail (端口 {SMTP_CONFIG['PORT']})...")
         
-        print("2. 连接成功，正在登录...")
+        # 🟢 关键修改：使用普通的 SMTP，不要用 SMTP_SSL
+        server = smtplib.SMTP(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"], timeout=30)
+        
+        print("2. 连接成功，正在开启 TLS 加密...")
+        server.starttls()  # 👈 587端口必须加这一句！
+        
+        print("3. 正在登录...")
         server.login(SMTP_CONFIG["EMAIL"], SMTP_CONFIG["PASSWORD"])
         
-        print("3. 登录成功，正在发送...")
+        print("4. 正在发送...")
         server.send_message(msg)
         server.quit()
         
@@ -280,3 +283,4 @@ IBC实创中心助理
     session.add(booking)
     session.commit()
     return RedirectResponse(url="/?msg=audit_done&role=admin", status_code=303)
+
