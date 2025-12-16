@@ -20,7 +20,7 @@ SMTP_CONFIG = {
     "SERVER": "smtp.gmail.com",   # 👈 必须是这个
     "PORT": 465,                  # 👈 必须是 465
     "EMAIL": "chenxz1219@gmail.com", 
-    "PASSWORD": "gtui qwuv jaky pghq"  # 👈 填在这里
+    "PASSWORD": "gtuiqwuvjakypghq"  # 👈 填在这里
 }
 
 # 下面的发送逻辑不用动，只要确保是 SMTP_SSL 即可
@@ -45,21 +45,26 @@ def send_email_task(to_email: str, subject: str, body: str):
     if not SMTP_CONFIG["ENABLE"] or "your_email" in SMTP_CONFIG["EMAIL"]:
         print("❌ 邮件功能已关闭或未配置，跳过发送")
         return
-    try:
+  try:
         msg = MIMEText(body, 'plain', 'utf-8')
         msg['From'] = SMTP_CONFIG["EMAIL"]
         msg['To'] = to_email
         msg['Subject'] = Header(subject, 'utf-8')
         
-        # ✅ 这里你的代码已经是正确的了 (SSL + 465端口)
+        print("1. 正在尝试连接 Gmail 服务器...")  # 👈 新增
         server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"])
+        
+        print("2. 连接成功，正在登录...")         # 👈 新增
         server.login(SMTP_CONFIG["EMAIL"], SMTP_CONFIG["PASSWORD"])
+        
+        print("3. 登录成功，正在发送...")         # 👈 新增
         server.send_message(msg)
         server.quit()
-        print("✅ 邮件发送成功！") # 加个成功提示
+        
+        print("✅ 邮件发送成功！") 
     except Exception as e:
         print(f"❌ 邮件发送失败: {e}")
-
+        
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
@@ -276,4 +281,5 @@ IBC实创中心助理
     session.add(booking)
     session.commit()
     return RedirectResponse(url="/?msg=audit_done&role=admin", status_code=303)
+
 
