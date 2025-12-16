@@ -14,17 +14,17 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 SEMESTER_START = date(2025, 9, 8) 
 
-# --- 📧 邮件配置 (修改版) ---
-# 👈 2. 修改：使用 os.getenv 读取环境变量
-# 这样你在 Render 网页上改 SMTP_ENABLE 为 False，这里就会生效
-# 如果 Render 上没设置，默认使用括号里的值
+# --- 📧 邮件配置 (Gmail版) ---
 SMTP_CONFIG = {
-    "ENABLE": os.getenv("SMTP_ENABLE", "True") == "True", 
-    "SERVER": "smtp.163.com", 
-    "PORT": 465, 
-    "EMAIL": "13925548126@163.com", 
-    "PASSWORD": "NJuBf6xSk2YdKTQH" 
+    "ENABLE": True, 
+    "SERVER": "smtp.gmail.com",   # 👈 必须是这个
+    "PORT": 465,                  # 👈 必须是 465
+    "EMAIL": "chenxz1219@gmail.com", 
+    "PASSWORD": "gtui qwuv jaky pghq"  # 👈 填在这里
 }
+
+# 下面的发送逻辑不用动，只要确保是 SMTP_SSL 即可
+# server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"])
 
 def get_week_info(target_date: date):
     delta_days = (target_date - SEMESTER_START).days
@@ -276,3 +276,4 @@ IBC实创中心助理
     session.add(booking)
     session.commit()
     return RedirectResponse(url="/?msg=audit_done&role=admin", status_code=303)
+
