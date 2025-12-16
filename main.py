@@ -1,7 +1,14 @@
-# 👇 --- [PATCH START] 强制使用 IPv4 (解决 Render 连不上 Gmail 的绝招) ---
+# 👇 --- [PATCH START] 强制使用 IPv4 (修正版) ---
 import socket
+
+# 1. 先把系统原来的函数存起来，防止死循环
+_original_getaddrinfo = socket.getaddrinfo
+
 def getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
-    return socket.getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+    # 2. 调用原来的函数，但强制指定 family=AF_INET (IPv4)
+    return _original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+# 3. 覆盖系统函数
 socket.getaddrinfo = getaddrinfo_ipv4
 # 👆 --- [PATCH END] ---
 
@@ -21,13 +28,13 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 SEMESTER_START = date(2025, 9, 8)
 
-# --- 📧 邮件配置 (Gmail版 + IPv4补丁 + 465端口) ---
+# --- 📧 邮件配置 (Gmail版 + 465 SSL) ---
 SMTP_CONFIG = {
     "ENABLE": True,
     "SERVER": "smtp.gmail.com",
-    "PORT": 465,  # 👈 改回 465 (SSL模式)
+    "PORT": 465,
     "EMAIL": "chenxz1219@gmail.com",
-    "PASSWORD": "gtuiqwuvjakypghq"  # 👈 你的应用专用密码
+    "PASSWORD": "gtuiqwuvjakypghq" 
 }
 
 def get_week_info(target_date: date):
@@ -43,8 +50,6 @@ def get_date_by_week_and_weekday(week_num: int, weekday_idx: int):
 def send_email_task(to_email: str, subject: str, body: str):
     print(f"====== [模拟邮件发送] ======\n收件人: {to_email}\n标题: {subject}\n内容:\n{body}\n===========================")
     
-    print(f"📧 当前邮件开关状态: {SMTP_CONFIG['ENABLE']}")
-    
     if not SMTP_CONFIG["ENABLE"] or "your_email" in SMTP_CONFIG["EMAIL"]:
         print("❌ 邮件功能已关闭或未配置，跳过发送")
         return
@@ -57,7 +62,7 @@ def send_email_task(to_email: str, subject: str, body: str):
         
         print(f"1. [IPv4模式] 正在连接 Gmail (端口 {SMTP_CONFIG['PORT']})...")
         
-        # ✅ 关键修改：使用 SMTP_SSL (465端口) + 30秒超时设置
+        # 使用 SMTP_SSL (465端口) + 30秒超时
         server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"], timeout=30)
         
         print("2. 连接成功，正在登录...")
