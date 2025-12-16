@@ -1,3 +1,10 @@
+# 👇 --- [PATCH START] 强制使用 IPv4 (解决 Render 连不上 Gmail 的绝招) ---
+import socket
+def getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    return socket.getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = getaddrinfo_ipv4
+# 👆 --- [PATCH END] ---
+
 import os
 from fastapi import FastAPI, Depends, Request, Form, Query, BackgroundTasks
 from fastapi.templating import Jinja2Templates
@@ -14,13 +21,13 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 SEMESTER_START = date(2025, 9, 8)
 
-# --- 📧 邮件配置 (Gmail版) ---
+# --- 📧 邮件配置 (Gmail版 + IPv4补丁 + 465端口) ---
 SMTP_CONFIG = {
-    "ENABLE": True, 
-    "SERVER": "smtp.gmail.com", 
-    "PORT": 587,   # 👈 必须改成 587
-    "EMAIL": "chenxz1219@gmail.com", 
-    "PASSWORD": "gtuiqwuvjakypghq" 
+    "ENABLE": True,
+    "SERVER": "smtp.gmail.com",
+    "PORT": 465,  # 👈 改回 465 (SSL模式)
+    "EMAIL": "chenxz1219@gmail.com",
+    "PASSWORD": "gtuiqwuvjakypghq"  # 👈 你的应用专用密码
 }
 
 def get_week_info(target_date: date):
@@ -48,18 +55,15 @@ def send_email_task(to_email: str, subject: str, body: str):
         msg['To'] = to_email
         msg['Subject'] = Header(subject, 'utf-8')
         
-        print(f"1. 正在连接 Gmail (端口 {SMTP_CONFIG['PORT']})...")
+        print(f"1. [IPv4模式] 正在连接 Gmail (端口 {SMTP_CONFIG['PORT']})...")
         
-        # 🟢 关键修改：使用普通的 SMTP，不要用 SMTP_SSL
-        server = smtplib.SMTP(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"], timeout=30)
+        # ✅ 关键修改：使用 SMTP_SSL (465端口) + 30秒超时设置
+        server = smtplib.SMTP_SSL(SMTP_CONFIG["SERVER"], SMTP_CONFIG["PORT"], timeout=30)
         
-        print("2. 连接成功，正在开启 TLS 加密...")
-        server.starttls()  # 👈 587端口必须加这一句！
-        
-        print("3. 正在登录...")
+        print("2. 连接成功，正在登录...")
         server.login(SMTP_CONFIG["EMAIL"], SMTP_CONFIG["PASSWORD"])
         
-        print("4. 正在发送...")
+        print("3. 登录成功，正在发送...")
         server.send_message(msg)
         server.quit()
         
@@ -283,5 +287,3 @@ IBC实创中心助理
     session.add(booking)
     session.commit()
     return RedirectResponse(url="/?msg=audit_done&role=admin", status_code=303)
-
-
