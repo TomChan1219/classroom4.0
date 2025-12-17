@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SCNU IBC SAC 智能预约系统 | Smart Booking</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     :root{
@@ -58,22 +59,24 @@
     }
     .appear{ animation: pop .34s var(--ease-out) both; }
     .appear-up{ animation: slideUp .42s var(--ease-out) both; }
+    
+    /* 隐藏滚动条但保留功能 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 
-<body class="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-200/60">
+<body class="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-200/60 font-sans">
 
-  <!-- Toast -->
   <div id="toast-root" class="fixed top-5 right-5 z-[80] space-y-3"></div>
 
-  <!-- Welcome -->
-  <div id="welcome-screen" class="fixed inset-0 z-[70] welcome-bg">
+  <div id="welcome-screen" class="fixed inset-0 z-[70] welcome-bg overflow-y-auto overflow-x-hidden">
     <div class="absolute inset-0 pointer-events-none">
       <div class="absolute -top-24 -left-24 w-[520px] h-[520px] rounded-full welcome-orb"></div>
       <div class="absolute -bottom-32 -right-32 w-[560px] h-[560px] rounded-full welcome-orb"></div>
     </div>
 
-    <div class="relative mx-auto max-w-6xl px-6 py-10">
+    <div class="relative mx-auto max-w-6xl px-6 py-10 min-h-screen flex flex-col justify-center">
       <div class="flex items-center justify-between appear">
         <div class="flex items-center gap-3">
           <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-pink-500 shadow-lg shadow-indigo-600/20 grid place-items-center text-white font-black">
@@ -85,8 +88,8 @@
           </div>
         </div>
         <div class="hidden md:flex items-center gap-2 text-xs text-slate-500">
-          <span class="px-3 py-1 rounded-full glass">Bilingual UI</span>
-          <span class="px-3 py-1 rounded-full glass">Motion</span>
+          <span class="px-3 py-1 rounded-full glass">双语 Bilingual UI</span>
+          <span class="px-3 py-1 rounded-full glass">动态图表 Motion Chart</span>
           <span class="px-3 py-1 rounded-full glass">FastAPI</span>
         </div>
       </div>
@@ -106,7 +109,8 @@
             </h1>
 
             <p class="mt-4 text-slate-600 leading-relaxed">
-              看板式资源可视化 + 一键预约 + 管理员审核/排课，提升课室资源利用效率与管理体验。
+              看板式资源可视化 + 一键预约 + 管理员审核/排课，提升课室资源利用效率与管理体验。<br>
+              Dashboard visualization + One-click booking + Admin auditing, improving efficiency.
             </p>
 
             <div class="mt-7 flex flex-col sm:flex-row gap-3">
@@ -117,13 +121,14 @@
 
               <button onclick="enterAdminFromWelcome()"
                       class="btn rounded-2xl px-6 py-3 font-semibold text-slate-800 bg-white/80 border border-slate-200 shadow-sm hover:shadow-md">
-                我是管理员 · Admin
+                我是管理员 · Admin Login
               </button>
             </div>
           </div>
 
           <div class="mt-5 text-xs text-slate-500">
-            提示：管理员入口需要密码验证（内置：123456）。
+            提示：管理员入口需要密码验证（内置：123456）。<br>
+            Note: Admin access requires password verification (Default: 123456).
           </div>
         </div>
 
@@ -134,13 +139,11 @@
                 <div class="text-xs text-slate-500">Today’s quote</div>
                 <div class="font-semibold">“Make every room matter.”</div>
               </div>
-              <!-- ✅ 修复点：不再用 Jinja 的 date，改为 JS 注入 -->
               <div id="day-of-year" class="text-xs px-3 py-1 rounded-full bg-white/70 border border-slate-200">
                 Day --/365
               </div>
             </div>
 
-            <!-- Weather Card (Welcome right side) -->
             <div class="mt-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 relative overflow-hidden shadow-xl">
               <div class="absolute inset-0 opacity-25"
                    style="background:radial-gradient(600px circle at 20% 10%, rgba(99,102,241,.65), transparent 45%),
@@ -153,83 +156,51 @@
                     <div class="text-2xl font-black tracking-tight mt-1">
                       佛山 <span class="text-white/70 text-base font-semibold">Foshan</span>
                     </div>
-                    <div class="text-white/70 mt-1 text-sm">出行提醒 · Campus vibe</div>
                   </div>
                   <div id="weather-badge" class="text-xs px-3 py-1 rounded-full bg-white/15 border border-white/20">
                     Loading...
                   </div>
                 </div>
-
                 <div class="mt-4 grid grid-cols-3 gap-3">
                   <div class="rounded-2xl bg-white/10 border border-white/10 p-3">
-                    <div class="text-xs text-white/70">温度</div>
+                    <div class="text-xs text-white/70">Temp</div>
                     <div class="text-xl font-black mt-1"><span id="weather-temp">--</span>°C</div>
                   </div>
                   <div class="rounded-2xl bg-white/10 border border-white/10 p-3">
-                    <div class="text-xs text-white/70">风速</div>
-                    <div class="text-xl font-black mt-1"><span id="weather-wind">--</span> km/h</div>
+                    <div class="text-xs text-white/70">Wind</div>
+                    <div class="text-xl font-black mt-1"><span id="weather-wind">--</span></div>
                   </div>
                   <div class="rounded-2xl bg-white/10 border border-white/10 p-3">
-                    <div class="text-xs text-white/70">时间</div>
+                    <div class="text-xs text-white/70">Time</div>
                     <div class="text-sm font-semibold mt-1" id="weather-time">--</div>
                   </div>
                 </div>
-
-                <div class="mt-4 text-xs text-white/70">
-                  数据源：后端 /api/weather（失败自动降级提示）
-                </div>
               </div>
             </div>
 
-            <!-- Room Usage (Simple Bars) -->
-            <div class="mt-4 rounded-2xl bg-white/60 border border-slate-200 p-5">
-              <div class="flex items-center justify-between">
+            <div class="mt-4 flex-1 rounded-2xl bg-white/60 border border-slate-200 p-5 flex flex-col">
+              <div class="flex items-center justify-between mb-2">
                 <div>
-                  <div class="text-xs text-slate-500">Mini chart</div>
-                  <div class="mt-1 font-semibold">本周课室使用次数 · Room Usage</div>
+                  <div class="text-xs text-slate-500">Statistics</div>
+                  <div class="font-semibold">本周热度 · Weekly Heatmap</div>
                 </div>
                 <button class="btn px-3 py-1.5 rounded-xl bg-white/80 border border-slate-200 text-xs font-semibold"
                         onclick="loadRoomUsage()">
-                  刷新
+                  Refresh ↻
                 </button>
               </div>
-
-              <div class="mt-3 text-xs text-slate-500" id="room-usage-meta">
-                Loading...
-              </div>
-
-              <div class="mt-4 space-y-3" id="room-usage-bars">
-                <!-- bars injected by JS -->
-              </div>
-
-              <div class="mt-4 text-xs text-slate-500">
-                数据源：/api/stats/room_usage（只做最简可视化，不影响预约功能）
-              </div>
-            </div>
-
-            <!-- keep original preview card exactly (unchanged) -->
-            <div class="mt-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 relative overflow-hidden shadow-xl">
-              <div class="absolute inset-0 opacity-25"
-                   style="background:radial-gradient(600px circle at 20% 10%, rgba(99,102,241,.65), transparent 45%),
-                          radial-gradient(500px circle at 90% 30%, rgba(236,72,153,.55), transparent 45%);">
-              </div>
-              <div class="relative">
-                <div class="text-xs text-white/70">Preview</div>
-                <div class="text-2xl font-black tracking-tight mt-1">资源看板 Dashboard</div>
-                <div class="text-white/70 mt-2 text-sm">
-                  房间 × 日期 × 节次 = 一眼掌控可用性。
+              
+              <div class="relative flex-1 flex items-center justify-center min-h-[200px]">
+                <canvas id="usageChart"></canvas>
+                <div id="chart-loading" class="absolute inset-0 grid place-items-center bg-white/50 backdrop-blur-[1px] text-xs text-slate-500">
+                  Loading Chart...
                 </div>
               </div>
-            </div>
-
-            <!-- original Design system card (unchanged) -->
-            <div class="mt-4 flex-1 rounded-2xl bg-white/60 border border-slate-200 p-5">
-              <div class="text-xs text-slate-500">Design system</div>
-              <div class="mt-1 font-semibold">Glass · Rounded · Micro-interactions</div>
-              <div class="mt-2 text-sm text-slate-600">
-                抽屉式审核、Toast 通知、课室列搜索筛选。
+              <div class="mt-2 text-center text-xs text-slate-400">
+                基于实时预约数据生成 · Powered by Chart.js
               </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -237,45 +208,43 @@
       <div class="mt-10 text-xs text-slate-500 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
         <div>© SCNU IBC SAC · Smart Booking System</div>
         <div class="flex gap-2">
-          <span class="px-3 py-1 rounded-full glass">Bilingual</span>
-          <span class="px-3 py-1 rounded-full glass">High-end UI</span>
+          <span class="px-3 py-1 rounded-full glass">Designed for Efficiency</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- App Shell -->
   <div id="app-shell" class="hidden">
     <header class="sticky top-0 z-40">
       <div class="mx-auto max-w-[1600px] px-5 pt-5">
         <div class="glass card rounded-3xl px-5 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-pink-500 shadow-lg shadow-indigo-600/20 grid place-items-center text-white font-black">
-              IBC
+          <button onclick="showWelcome()" class="group flex items-center gap-3 hover:opacity-80 transition-opacity" title="返回首页 / Back to Home">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-pink-500 shadow-lg shadow-indigo-600/20 grid place-items-center text-white font-black group-hover:scale-105 transition-transform">
+              <span class="text-xs">HOME</span>
             </div>
-            <div class="leading-tight">
+            <div class="leading-tight text-left">
               <div class="text-lg font-bold tracking-tight">课室资源看板 · Dashboard</div>
-              <div class="text-xs text-slate-500">SCNU IBC SAC · Smart Classroom Booking</div>
+              <div class="text-xs text-slate-500 group-hover:text-indigo-600">点击返回欢迎页 / Back to Welcome</div>
             </div>
-          </div>
+          </button>
 
           <div class="flex flex-col sm:flex-row sm:items-center gap-2">
             <div class="flex items-center gap-2">
               <a href="/?view_date={{ prev_week }}{{ '&role=admin' if request.query_params.get('role')=='admin' else '' }}"
                  class="btn px-4 py-2 rounded-2xl bg-white/70 border border-slate-200 hover:shadow-md text-sm">
-                ← 上周
+                ← 上周 / Prev
               </a>
               <div class="px-4 py-2 rounded-2xl bg-slate-900 text-white text-sm font-semibold shadow-sm">
-                {{ current_week_start }} 至 {{ next_week }}
+                {{ current_week_start }} ~ {{ next_week }}
               </div>
               <a href="/?view_date={{ next_week }}{{ '&role=admin' if request.query_params.get('role')=='admin' else '' }}"
                  class="btn px-4 py-2 rounded-2xl bg-white/70 border border-slate-200 hover:shadow-md text-sm">
-                下周 →
+                下周 / Next →
               </a>
             </div>
 
             <div class="flex items-center gap-2 sm:pl-2">
-              <span class="text-sm font-semibold text-slate-700">身份</span>
+              <span class="text-sm font-semibold text-slate-700">Role/身份</span>
               <select id="role-switch" onchange="handleRoleChange()"
                       class="px-4 py-2 rounded-2xl bg-white/80 border border-slate-200 text-sm font-semibold text-slate-800 shadow-sm hover:shadow-md focus:outline-none focus:ring-4 focus:ring-indigo-200/50">
                 <option value="student">学生 · Student</option>
@@ -285,7 +254,6 @@
           </div>
         </div>
 
-        <!-- ✅ 升级：课室搜索筛选（隐藏列，不改后端） -->
         <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div class="lg:col-span-8 glass card rounded-3xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2 text-sm">
@@ -300,23 +268,23 @@
               <input id="room-filter"
                      class="w-64 max-w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-sm
                             focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
-                     placeholder="筛选课室（输入关键字）"
+                     placeholder="Search Room / 搜索课室"
                      oninput="filterRoomColumns(this.value)">
               <button class="btn px-4 py-2 rounded-2xl bg-white/70 border border-slate-200 hover:shadow-md text-sm"
                       onclick="resetRoomFilter()">
-                重置
+                Reset
               </button>
             </div>
           </div>
 
           <div class="lg:col-span-4 grid grid-cols-2 gap-4">
             <div class="glass card rounded-3xl p-4">
-              <div class="text-xs text-slate-500">待审核 Pending</div>
+              <div class="text-xs text-slate-500">待审核 / Pending</div>
               <div class="text-2xl font-black tracking-tight mt-1">{{ pending_list|length }}</div>
               <div class="text-xs text-slate-500 mt-1">Admin drawer</div>
             </div>
             <div class="glass card rounded-3xl p-4">
-              <div class="text-xs text-slate-500">已通过 Approved</div>
+              <div class="text-xs text-slate-500">已通过 / Approved</div>
               <div class="text-2xl font-black tracking-tight mt-1">{{ approved_list|length }}</div>
               <div class="text-xs text-slate-500 mt-1">History list</div>
             </div>
@@ -330,19 +298,18 @@
       <div class="glass card rounded-3xl p-4">
         <div class="flex items-center justify-between mb-3">
           <div class="font-bold text-slate-800">资源矩阵 · Availability Matrix</div>
-          <div class="text-xs text-slate-500">输入筛选只隐藏课室列，不影响数据</div>
+          <div class="text-xs text-slate-500">双语展示 / Bilingual Display</div>
         </div>
 
         <div class="overflow-auto rounded-2xl border border-slate-200/60 bg-white/70">
           <table id="matrix-table" class="min-w-full border-separate border-spacing-2 text-sm text-center">
             <thead class="sticky top-0 z-10">
               <tr class="text-white">
-                <th class="p-3 rounded-2xl bg-slate-900/95">周次</th>
-                <th class="p-3 rounded-2xl bg-slate-900/95">日期</th>
-                <th class="p-3 rounded-2xl bg-slate-900/95">星期</th>
-                <th class="p-3 rounded-2xl bg-slate-900/95">节次</th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">周次<br><span class="text-xs font-normal opacity-70">Week</span></th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">日期<br><span class="text-xs font-normal opacity-70">Date</span></th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">星期<br><span class="text-xs font-normal opacity-70">Day</span></th>
+                <th class="p-3 rounded-2xl bg-slate-900/95">节次<br><span class="text-xs font-normal opacity-70">Slot</span></th>
                 {% for room in rooms %}
-                  <!-- ✅ 给每个房间列一个可定位的属性 -->
                   <th class="p-3 rounded-2xl bg-slate-900/95 min-w-[200px] room-col-head"
                       data-room-name="{{ room.name }}">
                     {{ room.name }}
@@ -359,7 +326,9 @@
                 <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 font-bold {{ 'text-indigo-700' if row.is_sunday else 'text-slate-700' }}">
                   {{ row.weekday }}
                 </td>
-                <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-slate-700">{{ row.slot }}</td>
+                <td class="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-slate-700 slot-cell-text" data-slot-raw="{{ row.slot_enum }}">
+                  {{ row.slot }}
+                </td>
 
                 {% for cell in row.cells %}
                 <td
@@ -373,6 +342,7 @@
                   data-room-id="{{ cell.room_id }}"
                   data-date="{{ row.date }}"
                   data-slot="{{ row.slot }}"
+                  data-slot-enum="{{ row.slot_enum }}"
                   data-booking-id="{{ cell.booking.id if cell.booking else '' }}"
                   data-student="{{ cell.booking.student_name if cell.booking else '' }}"
                   data-student-id="{{ cell.booking.student_id if cell.booking else '' }}"
@@ -386,15 +356,15 @@
                     <div class="font-extrabold">{{ cell.booking.student_name }}</div>
                     <div class="text-xs opacity-80 mt-1">{{ cell.booking.instructor_name }}</div>
                   {% elif cell.status == 'TAKEN' %}
-                    <div class="font-bold">已预约</div>
+                    <div class="font-bold">已预约 / Taken</div>
                     <div class="text-xs text-slate-700/70 mt-1">{{ cell.booking.student_name }}</div>
                   {% elif cell.status == 'PENDING' %}
-                    <div class="font-bold text-slate-700/80">审核中</div>
+                    <div class="font-bold text-slate-700/80">审核中 / Pending</div>
                     <div class="text-xs text-slate-500 mt-1">Waiting</div>
                   {% elif cell.status == 'FREE' %}
                     <div class="flex items-center justify-center gap-2">
                       <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-600/20 text-emerald-700 font-black">+</span>
-                      <span class="text-xs text-slate-700 font-semibold opacity-80">Click</span>
+                      <span class="text-xs text-slate-700 font-semibold opacity-80">Book</span>
                     </div>
                   {% else %}
                     <div class="text-slate-600/80 text-xs">—</div>
@@ -409,19 +379,17 @@
       </div>
     </main>
 
-    <!-- Admin Floating -->
     <button onclick="toggleDrawer()"
             class="admin-only hidden fixed bottom-7 right-7 z-50 btn rounded-2xl px-5 py-4 text-white font-bold
                    bg-gradient-to-r from-indigo-600 to-pink-500 shadow-xl shadow-indigo-600/20 flex items-center gap-3">
-      <span class="text-lg">管理申请</span>
+      <span class="text-lg">Manage 审核</span>
       <span class="px-2 py-1 rounded-full bg-white/20 border border-white/20 text-sm">
         {{ pending_list|length }}
       </span>
     </button>
 
-    <!-- Drawer -->
     <aside id="audit-drawer" class="drawer fixed inset-y-0 right-0 w-[420px] bg-white z-[60] border-l border-slate-200 shadow-2xl overflow-y-auto">
-      <div class="sticky top-0 bg-white/80 backdrop-blur border-b border-slate-200 p-5 flex items-center justify-between">
+      <div class="sticky top-0 bg-white/80 backdrop-blur border-b border-slate-200 p-5 flex items-center justify-between z-10">
         <div>
           <div class="text-xs text-slate-500">Admin Center</div>
           <div class="text-xl font-black tracking-tight">预约管理中心</div>
@@ -433,47 +401,60 @@
         <div class="grid grid-cols-2 gap-2 mb-4">
           <button onclick="showTab('pending')" id="btn-pending"
                   class="btn rounded-2xl py-3 font-bold border border-indigo-200 bg-indigo-50 text-indigo-700">
-            待审核 ({{ pending_list|length }})
+            待审核 Pending ({{ pending_list|length }})
           </button>
           <button onclick="showTab('approved')" id="btn-approved"
                   class="btn rounded-2xl py-3 font-bold border border-slate-200 bg-white text-slate-600">
-            已通过 ({{ approved_list|length }})
+            已通过 Approved ({{ approved_list|length }})
           </button>
         </div>
 
-        <!-- Pending -->
         <div id="tab-pending" class="space-y-4">
           {% for item in pending_list %}
           <div class="card rounded-3xl p-4 bg-white border border-slate-200/70 hover:shadow-lg transition">
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
               <div>
                 <div class="text-lg font-black">{{ item.student_name }}</div>
-                <div class="text-xs text-slate-500">学号: {{ item.student_id }}</div>
+                <div class="text-xs text-slate-500 font-mono">{{ item.student_id }}</div>
               </div>
               <div class="text-xs px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600">
-                {{ item.created_at.strftime('%m-%d %H:%M') }}
+                申请于 {{ item.created_at.strftime('%m-%d %H:%M') }}
               </div>
             </div>
 
-            <!-- ✅ 升级：显示真实课室名（Booking.room relationship） -->
-            <div class="mt-3 rounded-2xl bg-slate-50 border border-slate-200/60 p-3 text-sm text-slate-700 space-y-1">
-              <div><span class="font-semibold">课室:</span>
-                {{ item.room.name if item.room else ("Room " ~ item.room_id) }}
+            <div class="text-sm text-slate-700 space-y-2">
+              <div class="grid grid-cols-[70px_1fr]">
+                <span class="text-slate-400">课室:</span>
+                <span class="font-bold text-indigo-700">{{ item.room.name if item.room else ("Room " ~ item.room_id) }}</span>
               </div>
-              <div><span class="font-semibold">时间:</span> {{ item.booking_date }} | {{ item.slot }}</div>
-              <div><span class="font-semibold">邮箱:</span> {{ item.student_email }}</div>
+              <div class="grid grid-cols-[70px_1fr]">
+                <span class="text-slate-400">时间:</span>
+                <span>{{ item.booking_date }} <br> <span class="slot-display-hook font-semibold text-rose-600" data-slot="{{ item.slot }}">{{ item.slot }}</span></span>
+              </div>
+              <div class="grid grid-cols-[70px_1fr]">
+                <span class="text-slate-400">邮箱:</span>
+                <span class="break-all">{{ item.student_email }}</span>
+              </div>
+              <div class="grid grid-cols-[70px_1fr]">
+                <span class="text-slate-400">导师:</span>
+                <span>{{ item.instructor_name or '无/None' }}</span>
+              </div>
+              <div class="grid grid-cols-[70px_1fr]">
+                <span class="text-slate-400">用途:</span>
+                <span>{{ item.purpose }}</span>
+              </div>
             </div>
 
             <div class="mt-4 grid grid-cols-2 gap-2">
               <form action="/audit/{{ item.id }}" method="post">
                 <input type="hidden" name="action" value="approve">
                 <button class="btn w-full rounded-2xl py-3 font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm">
-                  通过
+                  通过 Approve
                 </button>
               </form>
               <button onclick="openCancelModal('{{ item.id }}', 'reject', 'reject')"
                       class="btn w-full rounded-2xl py-3 font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm">
-                驳回
+                驳回 Reject
               </button>
             </div>
           </div>
@@ -485,24 +466,23 @@
           {% endfor %}
         </div>
 
-        <!-- Approved -->
         <div id="tab-approved" class="space-y-4 hidden">
           {% for item in approved_list %}
           <div class="card rounded-3xl p-4 bg-white border border-slate-200/70">
             <div class="flex items-center justify-between">
               <div class="font-black text-slate-800">
                 {% if item.booking_type == 'course' %}
-                  📘 [课程] {{ item.student_name }}
+                  📘 [课程 Course] {{ item.student_name }}
                 {% else %}
-                  👤 {{ item.student_name }} ({{ item.student_id }})
+                  👤 {{ item.student_name }}
                 {% endif %}
               </div>
+              <div class="text-xs text-slate-400">{{ item.student_id }}</div>
             </div>
 
-            <!-- ✅ 升级：显示真实课室名 -->
             <div class="mt-3 text-sm text-slate-700 space-y-1">
-              <div><span class="font-semibold">时间:</span> {{ item.booking_date }} · {{ item.slot }}</div>
-              <div><span class="font-semibold">位置:</span>
+              <div><span class="text-slate-400">Time:</span> {{ item.booking_date }} · <span class="slot-display-hook" data-slot="{{ item.slot }}">{{ item.slot }}</span></div>
+              <div><span class="text-slate-400">Room:</span>
                 {{ item.room.name if item.room else ("Room " ~ item.room_id) }}
               </div>
             </div>
@@ -510,12 +490,12 @@
             {% if item.booking_type == 'course' %}
               <button onclick="openCancelModal('{{ item.id }}', 'delete', 'course_delete')"
                       class="btn w-full mt-4 rounded-2xl py-2.5 font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700">
-                取消排课
+                取消排课 / Cancel Course
               </button>
             {% else %}
               <button onclick="openCancelModal('{{ item.id }}', 'delete', 'student_delete')"
                       class="btn w-full mt-4 rounded-2xl py-2.5 font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700">
-                强制取消
+                强制取消 / Force Cancel
               </button>
             {% endif %}
           </div>
@@ -530,7 +510,6 @@
       </div>
     </aside>
 
-    <!-- Cancel Modal -->
     <div id="cancel-modal" class="fixed inset-0 z-[65] hidden">
       <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('cancel-modal')"></div>
       <div class="relative h-full w-full grid place-items-center p-4">
@@ -538,7 +517,7 @@
           <div class="flex items-start justify-between">
             <div>
               <div class="text-xs text-slate-500">Confirm</div>
-              <h2 class="text-xl font-black" id="cancel-title">确认操作</h2>
+              <h2 class="text-xl font-black" id="cancel-title">确认操作 / Confirm</h2>
             </div>
             <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
                     onclick="closeModal('cancel-modal')">&times;</button>
@@ -546,16 +525,16 @@
 
           <form id="cancel-form" action="" method="post" class="mt-5">
             <input type="hidden" name="action" id="cancel-action-input">
-            <label class="block text-sm font-bold text-slate-700 mb-2">请选择原因</label>
+            <label class="block text-sm font-bold text-slate-700 mb-2">请选择原因 / Reason</label>
             <select name="cancel_reason" id="cancel-reason-select"
                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-rose-200/40">
             </select>
 
             <div class="mt-6 flex justify-end gap-2">
               <button type="button" class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
-                      onclick="closeModal('cancel-modal')">暂不操作</button>
+                      onclick="closeModal('cancel-modal')">Cancel</button>
               <button type="submit" class="btn px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm">
-                确认提交
+                Confirm
               </button>
             </div>
           </form>
@@ -563,7 +542,6 @@
       </div>
     </div>
 
-    <!-- Detail Modal -->
     <div id="detail-modal" class="fixed inset-0 z-[65] hidden">
       <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('detail-modal')"></div>
       <div class="relative h-full w-full grid place-items-center p-4">
@@ -571,7 +549,7 @@
           <div class="flex items-start justify-between">
             <div>
               <div class="text-xs text-slate-500">Record</div>
-              <div class="text-xl font-black">预约详细档案</div>
+              <div class="text-xl font-black">预约档案 / Detail</div>
             </div>
             <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
                     onclick="closeModal('detail-modal')">&times;</button>
@@ -579,7 +557,7 @@
 
           <div class="mt-5 space-y-3 text-sm">
             <div class="rounded-2xl bg-slate-50 border border-slate-200/60 p-4">
-              <div class="text-xs text-slate-500">申请人/课程</div>
+              <div class="text-xs text-slate-500">申请人/课程 Applicant</div>
               <div id="detail-name" class="text-lg font-black mt-1"></div>
             </div>
 
@@ -589,39 +567,38 @@
                 <div id="detail-student-id" class="font-semibold mt-1"></div>
               </div>
               <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
-                <div class="text-xs text-slate-500">任课/指导老师</div>
+                <div class="text-xs text-slate-500">老师 Instructor</div>
                 <div id="detail-teacher" class="font-semibold mt-1"></div>
               </div>
             </div>
 
             <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
-              <div class="text-xs text-slate-500">联系邮箱</div>
+              <div class="text-xs text-slate-500">联系邮箱 Email</div>
               <div id="detail-email" class="font-semibold mt-1 text-indigo-700"></div>
             </div>
 
             <div class="rounded-2xl bg-white border border-slate-200/60 p-4">
-              <div class="text-xs text-slate-500">用途</div>
+              <div class="text-xs text-slate-500">用途 Purpose</div>
               <div id="detail-purpose" class="font-semibold mt-1"></div>
             </div>
 
             <div class="text-xs text-slate-500 pt-2 border-t border-slate-200">
-              时间: <span id="detail-time" class="font-semibold text-slate-700"></span>
+              Time: <span id="detail-time" class="font-semibold text-slate-700"></span>
             </div>
           </div>
 
           <div class="mt-6 flex justify-end gap-2">
             <button type="button" class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
-                    onclick="closeModal('detail-modal')">关闭</button>
+                    onclick="closeModal('detail-modal')">Close</button>
             <button id="btn-force-cancel"
                     class="btn px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm">
-              强制取消
+              强制取消 / Cancel
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Student Modal -->
     <div id="student-modal" class="fixed inset-0 z-[65] hidden">
       <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('student-modal')"></div>
       <div class="relative h-full w-full grid place-items-center p-4">
@@ -643,13 +620,13 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-sm font-bold text-slate-700 mb-1">学号</label>
+                <label class="block text-sm font-bold text-slate-700 mb-1">学号 Student ID</label>
                 <input type="text" name="student_id" required
                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
                        placeholder="Student ID">
               </div>
               <div>
-                <label class="block text-sm font-bold text-slate-700 mb-1">姓名</label>
+                <label class="block text-sm font-bold text-slate-700 mb-1">姓名 Name</label>
                 <input type="text" name="student_name" required
                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
                        placeholder="Name">
@@ -657,21 +634,21 @@
             </div>
 
             <div class="mt-3">
-              <label class="block text-sm font-bold text-slate-700 mb-1">指导老师（可选）</label>
+              <label class="block text-sm font-bold text-slate-700 mb-1">指导老师 Instructor (可选)</label>
               <input type="text" name="instructor_name"
                      class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
                      placeholder="Instructor">
             </div>
 
             <div class="mt-3">
-              <label class="block text-sm font-bold text-slate-700 mb-1">联系邮箱</label>
+              <label class="block text-sm font-bold text-slate-700 mb-1">联系邮箱 Email</label>
               <input type="email" name="student_email" required
                      class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
                      placeholder="Email">
             </div>
 
             <div class="mt-3">
-              <label class="block text-sm font-bold text-slate-700 mb-1">申请用途</label>
+              <label class="block text-sm font-bold text-slate-700 mb-1">申请用途 Purpose</label>
               <input type="text" name="purpose" required
                      class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
                      placeholder="Purpose">
@@ -680,10 +657,10 @@
             <div class="mt-6 flex justify-end gap-2">
               <button type="button"
                       class="btn px-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200"
-                      onclick="closeModal('student-modal')">取消</button>
+                      onclick="closeModal('student-modal')">取消 Cancel</button>
               <button type="submit"
                       class="btn px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-pink-500 text-white font-bold shadow-lg shadow-indigo-600/20">
-                提交申请
+                提交申请 Submit
               </button>
             </div>
           </form>
@@ -691,7 +668,6 @@
       </div>
     </div>
 
-    <!-- Admin Course Modal -->
     <div id="admin-modal" class="fixed inset-0 z-[65] hidden">
       <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('admin-modal')"></div>
       <div class="relative h-full w-full grid place-items-center p-4">
@@ -699,7 +675,7 @@
           <div class="flex items-start justify-between">
             <div>
               <div class="text-xs text-slate-500">Admin</div>
-              <div class="text-xl font-black text-rose-700">管理员排课（批量）</div>
+              <div class="text-xl font-black text-rose-700">管理员排课 (批量)</div>
             </div>
             <button class="btn w-10 h-10 rounded-2xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 grid place-items-center text-xl"
                     onclick="closeModal('admin-modal')">&times;</button>
@@ -712,13 +688,13 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-sm font-bold text-slate-700 mb-1">课程名称</label>
+                <label class="block text-sm font-bold text-slate-700 mb-1">课程名称 Course Name</label>
                 <input type="text" name="course_name" required
                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-rose-200/40"
                        placeholder="如：Python程序设计">
               </div>
               <div>
-                <label class="block text-sm font-bold text-slate-700 mb-1">任课老师</label>
+                <label class="block text-sm font-bold text-slate-700 mb-1">任课老师 Teacher</label>
                 <input type="text" name="course_teacher" required
                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-rose-200/40"
                        placeholder="如：王老师">
@@ -726,7 +702,7 @@
             </div>
 
             <div class="mt-4 rounded-3xl border border-rose-200 bg-rose-50 p-4">
-              <div class="font-bold text-rose-900 text-sm">循环上课周次（默认 1-16 周）</div>
+              <div class="font-bold text-rose-900 text-sm">循环上课周次 (默认 1-16 周)</div>
               <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
                 <span>第</span>
                 <input type="number" name="start_week" value="1" min="1" max="20"
@@ -739,7 +715,7 @@
             </div>
 
             <div class="mt-4">
-              <div class="font-bold text-sm text-slate-700 mb-2">选择上课节次</div>
+              <div class="font-bold text-sm text-slate-700 mb-2">选择上课节次 Select Slots</div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-3xl border border-slate-200 bg-slate-50 p-3">
                 {% for s in slots_list %}
                 <label class="btn flex items-center gap-3 rounded-2xl bg-white border border-slate-200 px-3 py-2 hover:shadow-sm cursor-pointer">
@@ -756,7 +732,7 @@
                       onclick="closeModal('admin-modal')">取消</button>
               <button type="submit"
                       class="btn px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-sm">
-                确认添加
+                确认添加 Add Course
               </button>
             </div>
           </form>
@@ -764,7 +740,6 @@
       </div>
     </div>
 
-    <!-- Password Modal -->
     <div id="password-modal" class="fixed inset-0 z-[75] hidden">
       <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" onclick="cancelLogin()"></div>
       <div class="relative h-full w-full grid place-items-center p-4">
@@ -773,22 +748,22 @@
             🔐
           </div>
           <div class="mt-4 text-xs text-slate-500">Admin Verification</div>
-          <div class="text-xl font-black mt-1">管理员登录</div>
+          <div class="text-xl font-black mt-1">管理员登录 / Login</div>
 
           <input type="password" id="admin-password-input"
                  class="mt-5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg tracking-widest
                         focus:outline-none focus:ring-4 focus:ring-indigo-200/40"
-                 placeholder="请输入密码 (123456)"
+                 placeholder="Password: 123456"
                  onkeydown="if(event.key === 'Enter') verifyPassword()">
 
           <div class="mt-5 flex justify-center gap-2">
             <button onclick="cancelLogin()"
                     class="btn px-6 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 font-semibold">
-              取消
+              Cancel
             </button>
             <button onclick="verifyPassword()"
                     class="btn px-6 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-pink-500 text-white font-bold shadow-lg shadow-indigo-600/20">
-              登录
+              Login
             </button>
           </div>
 
@@ -803,6 +778,16 @@
 
   <script>
     let isAdminLoggedIn = false;
+    let myChart = null; // Chart.js instance
+
+    // 修改需求3：节次映射表
+    const SLOT_MAPPING = {
+      'SLOT_A': '第1-2节 (08:30-10:00)',
+      'SLOT_B': '第3-4节 (10:10-11:40)',
+      'SLOT_C': '第5-6节 (14:30-16:00)',
+      'SLOT_D': '第7-8节 (16:10-17:40)',
+      'SLOT_E': '第9-11节 (19:00-21:30)'
+    };
 
     function toast(type, title, desc){
       const root = document.getElementById('toast-root');
@@ -866,7 +851,7 @@
       roleSelect.value = 'student';
       setRoleParam('student');
       updateUIForRole();
-      toast('info', '进入学生端', '点击绿色格子发起预约申请。');
+      toast('info', '进入学生端 Student Mode', '点击绿色格子发起预约申请。<br>Click green cells to book.');
     }
 
     function enterAdminFromWelcome(){
@@ -886,16 +871,16 @@
           inp.value = '';
           inp.focus();
           document.getElementById('role-switch').value = 'student';
-          toast('warning', '需要管理员验证', '请输入密码以进入审核/排课界面。');
+          toast('warning', '需要验证 Authorization Required', '请输入密码以进入审核/排课界面。');
         } else {
           setRoleParam('admin');
           updateUIForRole();
-          toast('info', '管理员模式', '你可以打开右下角管理抽屉进行审核。');
+          toast('info', '管理员模式 Admin Mode', '你可以打开右下角管理抽屉进行审核。');
         }
       } else {
         setRoleParam('student');
         updateUIForRole();
-        toast('info', '学生模式', '点击绿色格子发起预约申请。');
+        toast('info', '学生模式 Student Mode', '点击绿色格子发起预约申请。');
       }
     }
 
@@ -913,9 +898,9 @@
             document.getElementById('role-switch').value = 'admin';
             setRoleParam('admin');
             updateUIForRole();
-            toast('success', '验证通过', '已进入管理员界面。');
+            toast('success', '验证通过 Access Granted', '已进入管理员界面。');
           } else {
-            toast('error', '密码错误', '请重新输入。');
+            toast('error', '密码错误 Wrong Password', '请重新输入。');
             const inp = document.getElementById('admin-password-input');
             inp.value = '';
             inp.focus();
@@ -952,14 +937,14 @@
 
       let options = [];
       if (scenario === 'reject') {
-        title.innerText = "确认驳回申请";
-        options = ["本人填写信息有误", "预约请求和学院其它活动冲突"];
+        title.innerText = "确认驳回申请 Reject Application";
+        options = ["本人填写信息有误 Info Incorrect", "与学院其它活动冲突 Conflict with College Event"];
       } else if (scenario === 'course_delete') {
-        title.innerText = "确认取消课程";
-        options = ["教师需要调课", "上课场所和其它安排冲突"];
+        title.innerText = "确认取消课程 Cancel Course";
+        options = ["教师需要调课 Reschedule", "上课场所和其它安排冲突 Conflict"];
       } else {
-        title.innerText = "确认取消预约";
-        options = ["本人自愿申请取消", "与其它活动课程冲突"];
+        title.innerText = "确认取消预约 Cancel Booking";
+        options = ["本人自愿申请取消 Voluntarily", "与其它活动课程冲突 Conflict"];
       }
       options.forEach(opt => {
         const o = document.createElement('option');
@@ -985,7 +970,7 @@
         document.getElementById('detail-teacher').innerText = el.dataset.teacher || '无';
         document.getElementById('detail-email').innerText = el.dataset.email || '无';
         document.getElementById('detail-purpose').innerText = el.dataset.purpose || '无';
-        document.getElementById('detail-time').innerText = el.dataset.date + " " + el.dataset.slot;
+        document.getElementById('detail-time').innerText = el.dataset.date + " " + (SLOT_MAPPING[el.dataset.slotEnum] || el.dataset.slot);
 
         const isCourse = (status === 'COURSE');
         const scenario = isCourse ? 'course_delete' : 'student_delete';
@@ -997,7 +982,7 @@
 
       if (role === 'admin') {
         if (status === 'FREE') openAdminModal(el.dataset.roomId, el.dataset.date);
-        else if (status === 'PENDING') toast('info', '待审核申请', '请打开右下角管理抽屉进行审核。');
+        else if (status === 'PENDING') toast('info', '待审核申请 Pending', '请打开右下角管理抽屉进行审核。');
         else toast('warning', '不可操作', '该时段已被占用。');
       } else {
         if (status === 'FREE') openStudentModal(el.dataset.roomId, el.dataset.date, el.dataset.slot);
@@ -1037,7 +1022,6 @@
       }
     }
 
-    // ✅ 升级：课室列筛选（按房间名隐藏列）
     function filterRoomColumns(keyword){
       keyword = (keyword || '').trim().toLowerCase();
 
@@ -1045,20 +1029,14 @@
       if(!table) return;
 
       const headCells = Array.from(table.querySelectorAll('thead th'));
-      // 前4列固定：周次/日期/星期/节次
       const roomHeads = headCells.slice(4);
 
       roomHeads.forEach((th, idx) => {
         const name = (th.dataset.roomName || th.textContent || '').toLowerCase();
         const show = !keyword || name.includes(keyword);
-
-        // 真实列索引（在 tr 里的位置）
         const colIndex = 4 + idx;
 
-        // header
         th.style.display = show ? '' : 'none';
-
-        // body each row td
         Array.from(table.tBodies[0].rows).forEach(tr => {
           const cell = tr.cells[colIndex];
           if(cell) cell.style.display = show ? '' : 'none';
@@ -1071,7 +1049,6 @@
       filterRoomColumns('');
     }
 
-    // ✅ Day of year 用 JS 计算，彻底避免 Jinja date 变量
     function setDayOfYear(){
       const now = new Date();
       const start = new Date(now.getFullYear(), 0, 0);
@@ -1082,7 +1059,6 @@
       if(el) el.textContent = `Day ${day}/365`;
     }
 
-    // ✅ Welcome right: fetch weather
     async function loadWeather(){
       const badge = document.getElementById('weather-badge');
       const tempEl = document.getElementById('weather-temp');
@@ -1110,56 +1086,74 @@
       }
     }
 
-    // ✅ Welcome right: fetch simple usage bars
+    // ✅ 修改需求4：使用 Chart.js 渲染炫酷图表
     async function loadRoomUsage(){
-      const meta = document.getElementById('room-usage-meta');
-      const root = document.getElementById('room-usage-bars');
-      if(!meta || !root) return;
+      const loading = document.getElementById('chart-loading');
+      if(loading) loading.style.display = 'grid';
 
       try{
-        meta.textContent = 'Loading...';
-        root.innerHTML = '';
-
         const r = await fetch('/api/stats/room_usage');
         if(!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
-        if(!d || !d.ok) throw new Error('bad payload');
+        
+        const ctx = document.getElementById('usageChart');
+        if (myChart) myChart.destroy();
 
-        const labels = d.labels || [];
-        const values = d.values || [];
-        meta.textContent = `${d.week_start} ~ ${d.week_end}（周统计）`;
-
-        const maxV = Math.max(1, ...values);
-
-        labels.forEach((name, i) => {
-          const v = values[i] ?? 0;
-          const pct = Math.round((v / maxV) * 100);
-
-          const row = document.createElement('div');
-          row.className = 'space-y-1';
-
-          row.innerHTML = `
-            <div class="flex items-center justify-between text-xs">
-              <div class="font-semibold text-slate-700 truncate pr-2" title="${name}">${name}</div>
-              <div class="text-slate-500 font-semibold">${v}</div>
-            </div>
-            <div class="h-2.5 rounded-full bg-slate-200/70 overflow-hidden">
-              <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-pink-500" style="width:${pct}%"></div>
-            </div>
-          `;
-          root.appendChild(row);
-        });
-
-        if(labels.length === 0){
-          meta.textContent = `${d.week_start} ~ ${d.week_end}（暂无数据）`;
+        if (d.ok && ctx) {
+          myChart = new Chart(ctx, {
+            type: 'polarArea', // 炫酷的极地面积图
+            data: {
+              labels: d.labels,
+              datasets: [{
+                label: '本周使用次数',
+                data: d.values,
+                backgroundColor: [
+                  'rgba(255, 99, 132, 0.5)',
+                  'rgba(54, 162, 235, 0.5)',
+                  'rgba(255, 206, 86, 0.5)',
+                  'rgba(75, 192, 192, 0.5)',
+                  'rgba(153, 102, 255, 0.5)',
+                  'rgba(255, 159, 64, 0.5)'
+                ],
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                r: {
+                  ticks: { display: false },
+                  grid: { color: "rgba(0,0,0,0.05)" }
+                }
+              },
+              plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 10, font: {size: 10} } }
+              }
+            }
+          });
         }
       }catch(e){
-        meta.textContent = '加载失败（后端未启动或接口不可用）';
-        root.innerHTML = `
-          <div class="text-sm text-rose-700 font-semibold">无法获取统计数据</div>
-          <div class="text-xs text-slate-500 mt-1">请确认 /api/stats/room_usage 可访问</div>
-        `;
+        console.error(e);
+      }finally{
+        if(loading) loading.style.display = 'none';
       }
+    }
+
+    // ✅ 修改需求3：格式化所有节次显示
+    function formatAllSlots() {
+      // 处理抽屉里的 hook 元素
+      document.querySelectorAll('.slot-display-hook').forEach(el => {
+        const raw = el.dataset.slot; 
+        // 尝试映射，如果 raw 是 SLOT_A 这种格式
+        // (已移除之前的 Jinja2 标签注释，避免语法冲突)
+        // 如果后端直接渲染了中文，我们这里就不动。
+        if(SLOT_MAPPING[raw]) {
+          el.textContent = SLOT_MAPPING[raw];
+        } else if (raw.includes('SLOT_')) {
+             el.textContent = SLOT_MAPPING[raw] || raw;
+        }
+      });
     }
 
     window.onload = function() {
@@ -1182,11 +1176,12 @@
       }
       updateUIForRole();
       showTab('pending');
+      formatAllSlots(); // 初始化格式化
 
-      if (msg === 'submitted') toast('success', "申请已提交", "请等待助理审核结果（如填写邮箱，审核结果将邮件通知）。");
-      else if (msg === 'audit_done') toast('success', "操作完成", "系统已处理审核/取消，并在需要时发送邮件通知。");
-      else if (msg === 'course_added') toast('success', "课程排课成功", "课程记录已写入系统（课程不发送邮件通知）。");
-      else if (msg === 'error_conflict') toast('error', "冲突占用", "该时段刚刚被占用，请选择其他时段或课室。");
+      if (msg === 'submitted') toast('success', "申请已提交 Submitted", "请等待助理审核结果（如填写邮箱，审核结果将邮件通知）。");
+      else if (msg === 'audit_done') toast('success', "操作完成 Done", "系统已处理审核/取消，并在需要时发送邮件通知。");
+      else if (msg === 'course_added') toast('success', "课程排课成功 Success", "课程记录已写入系统（课程不发送邮件通知）。");
+      else if (msg === 'error_conflict') toast('error', "冲突占用 Conflict", "该时段刚刚被占用，请选择其他时段或课室。");
     };
   </script>
 </body>
