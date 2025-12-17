@@ -780,7 +780,7 @@
     let isAdminLoggedIn = false;
     let myChart = null; // Chart.js instance
 
-    // 修改需求3：节次映射表
+    // 节次映射表
     const SLOT_MAPPING = {
       'SLOT_A': '第1-2节 (08:30-10:00)',
       'SLOT_B': '第3-4节 (10:10-11:40)',
@@ -1086,7 +1086,6 @@
       }
     }
 
-    // ✅ 修改需求4：使用 Chart.js 渲染炫酷图表
     async function loadRoomUsage(){
       const loading = document.getElementById('chart-loading');
       if(loading) loading.style.display = 'grid';
@@ -1140,18 +1139,23 @@
       }
     }
 
-    // ✅ 修改需求3：格式化所有节次显示
+    // 格式化节次显示（新增逻辑：处理 "TimeSlot.SLOT_A" 格式）
     function formatAllSlots() {
       // 处理抽屉里的 hook 元素
       document.querySelectorAll('.slot-display-hook').forEach(el => {
-        const raw = el.dataset.slot; 
-        // 尝试映射，如果 raw 是 SLOT_A 这种格式
-        // (已移除之前的 Jinja2 标签注释，避免语法冲突)
-        // 如果后端直接渲染了中文，我们这里就不动。
+        let raw = el.dataset.slot; 
+        
+        // 如果后端传回的是 "TimeSlot.SLOT_A" 这种枚举字符串
+        // 我们需要去掉前面的 "TimeSlot." 才能匹配到 SLOT_MAPPING
+        if(raw.indexOf('.') !== -1){
+            raw = raw.split('.')[1]; // 取出 "SLOT_A"
+        }
+
         if(SLOT_MAPPING[raw]) {
           el.textContent = SLOT_MAPPING[raw];
-        } else if (raw.includes('SLOT_')) {
-             el.textContent = SLOT_MAPPING[raw] || raw;
+        } else {
+             // 兜底：如果还是没匹配上，尝试直接匹配
+             el.textContent = SLOT_MAPPING[el.dataset.slot] || el.dataset.slot;
         }
       });
     }
@@ -1176,7 +1180,9 @@
       }
       updateUIForRole();
       showTab('pending');
-      formatAllSlots(); // 初始化格式化
+      
+      // 执行格式化
+      formatAllSlots(); 
 
       if (msg === 'submitted') toast('success', "申请已提交 Submitted", "请等待助理审核结果（如填写邮箱，审核结果将邮件通知）。");
       else if (msg === 'audit_done') toast('success', "操作完成 Done", "系统已处理审核/取消，并在需要时发送邮件通知。");
